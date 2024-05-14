@@ -10,19 +10,61 @@
 #limitations under the License.
 
 #pull in climate data ----
-source("scripts/climr_getdata.R")
+source("scripts/climr_getdata.R") #ignore warning
 
 #merge with veg data---- 
 veg_dat<-BEC_data$veg
-veg_dat<-left_join(veg_dat, rename(clim_dat, PlotNumber=id))#ignore warning 
-names(veg_dat)
-str(veg_dat)#what are the different covers (1-7) ?? 
-unique(veg_dat$Species)
+all_dat<-left_join(veg_dat, plot_dat)#join with plot & climate info 
 
-#sanity check
-#look at cedar - should have pos relationship with PPT??  
-Cw<-subset(veg_dat, Species=='THUJPLI')
-ggplot(Cw, aes(y=Cover5, x=PPT))+
+site_dat<-BEC_data$info
+all_dat<-left_join(all_dat, rename(site_dat, PlotNumber=Plot))#join with plot & climate info 
+
+#clean up
+rm(plot_dat)
+rm(site_dat)
+rm(my_points)
+rm(veg_dat)
+gc()
+
+sort(names(all_dat))
+unique(all_dat$BECSiteUnit)
+
+#look at data across species/sites 
+all_dat<-filter(all_dat, !is.na(BECSiteUnit))
+
+spp_tab<-all_dat%>%
+                group_by(Species, BECSiteUnit, GIS_BGC, SiteSeries, UserSiteUnit)%>%
+                summarise(nobs=n())
+
+#subset to most measured spp- Western Hemlock
+Hw<-subset(all_dat, Species=='TSUGHET') 
+#plot across different sites 
+#Site series are the different sites wet to dry (101-Zonal)- Needs cleaning/renumbering 
+str(Hw)
+
+ggplot(Hw, aes(y=TotalA, x=MAT, color=SiteSeries))+
   geom_point()+
-  geom_smooth(method='lm')#+
-  #ylim(-2.5, 11) #git rid of outliers 
+  facet_wrap(~GIS_BGC)+
+  geom_smooth(method='lm', se = F)+
+  #theme(legend.position = 'none')
+  xlim(-2.5, 12) #git rid of outliers 
+
+#Doug Fir
+Fd<-subset(all_dat, Species=='PSEUMEN1')
+ggplot(Fd, aes(y=TotalA, x=MAT, color=SiteSeries))+
+  geom_point()+
+  facet_wrap(~GIS_BGC)+
+  geom_smooth(method='lm', se = F)+
+  #theme(legend.position = 'none')
+  xlim(-2.5, 12) #git rid of outliers 
+
+#Western red Cedar 
+Cw<-subset(all_dat, Species=='THUJPLI')
+ggplot(Cw, aes(y=TotalA, x=MAT, color=SiteSeries))+
+  geom_point()+
+  facet_wrap(~GIS_BGC)+
+  geom_smooth(method='lm', se = F)+
+  #theme(legend.position = 'none')
+  xlim(-2.5, 12) #git rid of outliers 
+
+#very uneven sampling across BGCs, need some threshold for number of siteseries per BGC etc, also probably number of records per Site Series
