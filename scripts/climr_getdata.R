@@ -23,7 +23,7 @@ BEC_data<-readRDS("data/BEC_data.rds")
 plot_dat<-BEC_data$env #70,547 plots
 
 #make dataframe for extracting climate data
-my_points <- select(plot_dat, Longitude, Latitude, Elevation, PlotNumber, ProjectID, SiteSeries) %>%
+my_points <- select(plot_dat, Longitude, Latitude, Elevation, PlotNumber, ProjectID) %>%
   rename(lon = Longitude,   lat = Latitude, 
   elev = Elevation, id = PlotNumber)%>%
   na.omit() #remove NAs
@@ -33,12 +33,13 @@ my_points <- select(plot_dat, Longitude, Latitude, Elevation, PlotNumber, Projec
 list_historic()
 list_historic_ts()
 list_variables() 
+data('variables')#look up table for vars 
 
-## climr query for the historic data 
+## climr query for the historic data - only using 1961-1990 for now 
 clim_dat <- climr_downscale(
   xyz = my_points, which_normal = "auto",
-  historic_period = "2001_2020", 
-  #historic_TS = C(1980:2001),
+  #historic_period = "2001_2020", 
+  #historic_ts = C(1961:1990),
   #gcm_models = c("GFDL-ESM4", "EC-Earth3"), # specify two global climate models
   #ssp = c("ssp370", "ssp245"), # specify two greenhouse gas concentration scenarios
   #gcm_period = c("2001_2020", "2041_2060"), # specify two 20-year periods
@@ -46,12 +47,15 @@ clim_dat <- climr_downscale(
   vars = c("PPT", "MAT")
 )
 
+
 #sanity check
 #merge back with plot data 
 plot_dat<-left_join(plot_dat, rename(clim_dat, PlotNumber=id))
+
 ggplot(plot_dat, aes(x=Elevation, y=MAT))+
   geom_point()+
-  geom_smooth()+
+  geom_smooth(method='lm')+
+  theme(legend.position = 'none')+
   ylim(-10, 10) + xlim(0,4000) #git rid of outliers 
 #looks good, MAT does in fact decline with elevation
 
