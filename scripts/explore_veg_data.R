@@ -74,12 +74,10 @@ ggplot(Hw, aes(y=TotalA, x=MAT, color=Site))+
 
 
 #uneven sampling across BGCs, need some threshold for number of siteseries per BGC etc, also probably number of records per Site Series
-all_dat<-filter(all_dat, !is.na(BECSiteUnit))
 
 
 #add feasibility tables in??
 
-names(all_dat)
 
 #test model
 library(lme4)
@@ -92,12 +90,12 @@ hist(Hw$MAT)
 
 unique(Hw$MAT)
 
-#categorize MAT            
+#categorize MAT?           
 Hw<-mutate(Hw, MATcat=cut(MAT, breaks = 5,
       labels = c("MAT1", "MAT2", "MAT3", "MAT4", "MAT5")))
+Hw<-left_join(Hw, spp_tab)%>%subset(nobs>2)
 
-
-Hwmod<-lmer(log(TotalA)~ scale(MAT) + scale(PPT) + (MATcat|bgc:Site),  Hw) #can't do nested Random slope 
+Hwmod<-lmer(log(TotalA)~ scale(MAT) + scale(PPT) + (MATcat|bgc:Site) ,  Hw) #can't do nested Random slope 
 summary(Hwmod)
 
 Hwmod<-lmer(log(TotalA)~ scale(MAT) + scale(PPT) + (MATcat|GIS_BGC) + (MATcat|GIS_BGC:SiteSeries),  Hw) #can't do nested RE
