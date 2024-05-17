@@ -33,7 +33,9 @@ my_points <- select(plot_dat, Longitude, Latitude, Elevation, PlotNumber, Projec
 list_historic()
 list_historic_ts()
 list_variables() 
-data('variables')#look up table for vars 
+
+vars<-climr::variables #look up table for vars 
+
 
 ## climr query for the historic data - only using 1961-1990 for now 
 clim_dat <- climr_downscale(
