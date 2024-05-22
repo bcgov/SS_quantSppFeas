@@ -38,8 +38,10 @@ vars<-climr::variables #look up table for vars
 
 
 ## climr query for the historic data - only using 1961-1990 for now 
+#how to check the resolution of these data? 
+
 clim_dat <- climr_downscale(
-  xyz = my_points, which_normal = "auto",
+  xyz = my_points, which_normal = "auto", 
   #historic_period = "2001_2020", 
   #historic_ts = C(1961:1990),
   #gcm_models = c("GFDL-ESM4", "EC-Earth3"), # specify two global climate models
@@ -48,7 +50,6 @@ clim_dat <- climr_downscale(
   max_run = 3, # specify 3 individual runs for each model
   vars = c("PPT", "MAT")
 )
-
 
 #sanity check
 #merge back with plot data 
