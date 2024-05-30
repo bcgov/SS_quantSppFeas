@@ -30,9 +30,9 @@ my_points <- select(plot_dat, Longitude, Latitude, Elevation, PlotNumber, Projec
 
 #look at options 
 #what to select here?
-list_historic()
-list_historic_ts()
-list_variables() 
+list_obs_periods()
+list_obs_years()
+list_vars() 
 
 vars<-climr::variables #look up table for vars 
 
@@ -40,14 +40,14 @@ vars<-climr::variables #look up table for vars
 ## climr query for the historic data - only using 1961-1990 for now 
 #how to check the resolution of these data? 
 
-clim_dat <- climr_downscale(
-  xyz = my_points, which_normal = "auto", 
+clim_dat <- downscale(
+  xyz = my_points, which_refmap = "auto", 
   #historic_period = "2001_2020", 
   #historic_ts = C(1961:1990),
   #gcm_models = c("GFDL-ESM4", "EC-Earth3"), # specify two global climate models
   #ssp = c("ssp370", "ssp245"), # specify two greenhouse gas concentration scenarios
   #gcm_period = c("2001_2020", "2041_2060"), # specify two 20-year periods
-  max_run = 3, # specify 3 individual runs for each model
+  #max_run = 3, # specify 3 individual runs for each model
   vars = c("PPT", "MAT")
 )
 
