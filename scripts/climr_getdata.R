@@ -48,8 +48,10 @@ clim_dat <- downscale(
   #ssp = c("ssp370", "ssp245"), # specify two greenhouse gas concentration scenarios
   #gcm_period = c("2001_2020", "2041_2060"), # specify two 20-year periods
   #max_run = 3, # specify 3 individual runs for each model
-  vars = c("PPT", "MAT")
-)
+  vars = c("PPT", "MAT"))
+  
+#decide any other climate variables we want to include! 
+
 
 #sanity check
 #merge back with plot data 
@@ -68,6 +70,8 @@ ggplot(plot_dat, aes(x=Elevation, y=PPT))+
   #ylim(-10, 10) + 
   xlim(0,4000) #git rid of outliers 
 #precip more interesting - is this picking up snow??
+
+
 
 
 #rasterize----
