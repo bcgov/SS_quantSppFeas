@@ -72,8 +72,7 @@ cols_keep<-subset(col_cts, n_obs>30000)
 cols_keep<-cols_keep$cols
 
 #filter for only consistently recorded columns 
-#tree_datx<-select(tree_dat, all_of(cols_keep))
-
+tree_dat<-select(tree_dat, all_of(cols_keep))
 
 #remove info not using
 #tree_datx<-select(tree_datx, 
@@ -105,7 +104,7 @@ library(lubridate)
 tree_dat<-mutate(tree_dat,year=year(Date))
 
 
-#save(tree_dat, file="data/tree_data_cleaned.Rdata")
+save(tree_dat, file="data/tree_data_cleaned.Rdata")
 
 #read in cleaned tree data---- 
 load(file="data/tree_data_cleaned.Rdata")
@@ -179,7 +178,8 @@ sort(unique(tree_dat$Species))
 #combine feas table with plot data----
 tree_datx<-mutate(tree_dat,  ss_nospace= gsub(" ", "", SiteUnit)) #create matching column to feas table
 tree_datx<-left_join(tree_datx, feas_tab2, relationship = "many-to-many")%>%rename(newfeas=newfeas2)
-#need to fix the 01 to 101s in several places so these can align correctly 
+#confirm that joined by ALL 3 columns: Species, bgc, ss_nospace 
+##may need to fix the 01 to 101s in several places so these can align correctly??
 
 #look at whether feasibility is reflective of plot level abundance by species 
 ggplot(tree_datx, aes(y=TotalA, x=newfeas))+
@@ -189,7 +189,9 @@ ggplot(tree_datx, aes(y=TotalA, x=newfeas))+
 cor.test(tree_datx$TotalA, tree_datx$newfeas) #-0.25
 
 cors<- group_by(tree_datx, Species)%>% 
-  summarise(abun_feas_cor=cor(TotalA, newfeas, use="na.or.complete")) #-0.75 to +0.25 varies a lot by spp 
+  summarise(abun_feas_cor=cor(TotalA, newfeas, use="na.or.complete")) 
+max(cors$abun_feas_cor, na.rm = T)#-0.72 to +0.25 varies a lot by spp 
+min(cors$abun_feas_cor, na.rm = T)
 #two spp with pos correlations which is opposite of expected-> poor data coverage  
 #POPUTRI 0.24638427
 #PINUALB 0.14793807 
