@@ -10,7 +10,9 @@
 #limitations under the License.
 
 #pull in climate data ----
+cache_clear()
 source("scripts/climr_getdata.R") #ignore warnings
+
 
 #merge with veg data---- 
 veg_dat<-BEC_data$veg
@@ -75,12 +77,12 @@ cols_keep<-cols_keep$cols
 tree_dat<-select(tree_dat, all_of(cols_keep))
 
 #remove info not using
-#tree_datx<-select(tree_datx, 
-#    -Cover2, -FSRegionDistrict, -SV_FloodPlain, -ProvinceStateTerritory, 
-#    -NtsMapSheet, -Flag, -SpeciesListComplete, -UpdatedFromCards, -Zone)
-#names(tree_datx)
+tree_dat<-select(tree_dat, 
+    -Cover2, -FSRegionDistrict, -SV_FloodPlain, -ProvinceStateTerritory, 
+    -NtsMapSheet, -Flag, -SpeciesListComplete, -UpdatedFromCards, -Zone, -Ecosection)
+names(tree_dat)
 
-# SNR, aSMR, aspect, slope 
+#aspect, slope 
 sort(names(tree_dat))
 str(tree_dat)#what are continuous/numeric?? elevation, slope, aspect, substrate categories 
 hist(tree_dat$Aspect)#Should be from 0-360
@@ -88,32 +90,226 @@ tree_dat<-subset(tree_dat, Aspect<361)
 hist(tree_dat$SlopeGradient)#Should be from 0-100??
 tree_dat<-subset(tree_dat, SlopeGradient<101)
 
+# SNR, aSMR 
+unique(tree_dat$NutrientRegime)# need to finalize calls on all
+unique(tree_dat$MoistureRegime) # need to finalize calls on all 
+
+#try to create table to fill in from
+SMRs<-group_by(tree_dat, SiteUnit)%>%select(MoistureRegime, NutrientRegime) %>%distinct()%>%mutate(ctMoist=n_distinct(MoistureRegime))%>%
+  mutate(ctNut=n_distinct(NutrientRegime))%>%mutate(MoistNA= is.na(MoistureRegime))%>%mutate(NutNA= is.na(NutrientRegime))
+
+#set rules for transitional SMRs and SNRs 
+sort(table(SMRs$NutrientRegime)) #table-base R
+                                
+SMRs<-mutate(SMRs, NutrientRegime_clean = case_when(NutrientRegime=="A" ~ "A",
+                                      NutrientRegime=="A+" ~ "A",
+                                      NutrientRegime=="AB" ~ "B",
+                                      NutrientRegime=="B" ~ "B",
+                                      NutrientRegime=="BA" ~ "B",
+                                      NutrientRegime=="B+" ~ "B",
+                                      NutrientRegime=="B-" ~ "B",
+                                      NutrientRegime=="BC" ~ "C",
+                                      NutrientRegime=="C" ~ "C",
+                                      NutrientRegime=="C+" ~ "C",
+                                      NutrientRegime=="C-" ~ "C",
+                                      NutrientRegime=="CB" ~ "C",
+                                      NutrientRegime=="CD" ~ "C",
+                                      NutrientRegime=="D" ~ "D",
+                                      NutrientRegime=="D+" ~ "D",
+                                      NutrientRegime=="D-" ~ "D",
+                                      NutrientRegime=="DC" ~ "C",
+                                      NutrientRegime=="DE" ~ "D",
+                                      NutrientRegime=="E" ~ "E",
+                                      NutrientRegime=="E-" ~ "E",
+                                      NutrientRegime=="ED-" ~ "D",
+                                      NutrientRegime=="F" ~ "F",
+                                      NutrientRegime=="F-" ~ "F",
+                                      NutrientRegime=="M" ~ "C",
+                                      NutrientRegime=="P" ~ "B",
+                                      NutrientRegime=="R" ~ "D",
+                                      NutrientRegime=="3" ~ "NA",
+                                      NutrientRegime=="6" ~ "NA"))
+
+sort(table(SMRs$MoistureRegime))
+SMRs<-mutate(SMRs, MoistureRegime_clean = case_when(MoistureRegime=="$" ~ "NA",
+                                                    MoistureRegime=="0" ~ "0",
+                                                    MoistureRegime=="0-1" ~ "1",
+                                                    MoistureRegime=="0+" ~ "0",
+                                                    MoistureRegime=="1" ~ "1",
+                                                    MoistureRegime=="1-0" ~ "1",
+                                                    MoistureRegime=="1-1" ~ "1",
+                                                    MoistureRegime=="1-2" ~ "2",
+                                                    MoistureRegime=="1+" ~ "1",
+                                                    MoistureRegime=="2" ~ "2",
+                                                    MoistureRegime=="2-" ~ "2",
+                                                    MoistureRegime=="2-0" ~ "1",
+                                                    MoistureRegime=="2-1" ~ "2",
+                                                    MoistureRegime=="2-3" ~ "3",
+                                                    MoistureRegime=="2+" ~ "2",
+                                                    MoistureRegime=="3" ~ "3",
+                                                    MoistureRegime=="3-" ~ "3",
+                                                    MoistureRegime=="3-2" ~ "3",
+                                                    MoistureRegime=="3-3" ~ "3",
+                                                    MoistureRegime=="3-4" ~ "4",
+                                                    MoistureRegime=="3(2" ~ "3",
+                                                    MoistureRegime=="3+" ~ "3",
+                                                    MoistureRegime=="4" ~ "4",
+                                                    MoistureRegime=="4-" ~ "4",
+                                                    MoistureRegime=="4-3" ~ "4",
+                                                    MoistureRegime=="4-5" ~ "4",
+                                                    MoistureRegime=="4(3" ~ "4",
+                                                    MoistureRegime=="4.5" ~ "4", 
+                                                    MoistureRegime=="4+" ~ "4",
+                                                    MoistureRegime=="5" ~ "5",
+                                                    MoistureRegime=="5-4" ~ "4",
+                                                    MoistureRegime=="5-6" ~ "5",
+                                                    MoistureRegime=="5(6" ~ "5",
+                                                    MoistureRegime=="5H" ~ "5",
+                                                    MoistureRegime=="6" ~ "6",
+                                                    MoistureRegime=="6-" ~ "6",
+                                                    MoistureRegime=="6-4" ~ "5",
+                                                    MoistureRegime=="6-5" ~ "5",
+                                                    MoistureRegime=="6-7" ~ "6", 
+                                                    MoistureRegime=="6+" ~ "6",
+                                                    MoistureRegime=="7" ~ "7",
+                                                    MoistureRegime=="7-" ~ "7",
+                                                    MoistureRegime=="8" ~ "8",
+                                                    MoistureRegime=="PM" ~ "NA"))
+
+SMRs<-select(SMRs, SiteUnit, MoistureRegime, NutrientRegime, NutrientRegime_clean, MoistureRegime_clean)
+
+#merge back to tree data
+tree_dat<-left_join(tree_dat, SMRs)
 
 #look at other veg vars of interest
-hist(tree_dat$StrataCoverHerb)
-hist(tree_dat$StrataCoverMoss)
-hist(tree_dat$StrataCoverShrub)
 hist(tree_dat$StrataCoverTree) #normally distributed-ish  #is this all tree spp combined??
 hist(tree_dat$StrataCoverTotal) #what is this?
-
-
 hist(tree_dat$TotalA) #right skewed - beta dist?
 
 #create a year column
 library(lubridate)
 tree_dat<-mutate(tree_dat,year=year(Date))
+names(tree_dat)
 
-
+#save cleaned tree data----
 save(tree_dat, file="data/tree_data_cleaned.Rdata")
 
-#read in cleaned tree data---- 
-load(file="data/tree_data_cleaned.Rdata")
+#look at most measured spp----- 
+#Western red Cedar 
+Cw<-subset(tree_dat, Species=='THUJPLI')  #3814 obs
+ggplot(Cw, aes(y=TotalA, x=MAT, color=Site))+
+  geom_point()+
+  facet_wrap(~bgc) 
+#geom_smooth(method='lm', se = F)#+
+#theme(legend.position = 'none')
+#xlim(-2.5, 12) #git rid of outliers 
+
+#Western Hemlock
+Hw<-subset(tree_dat, Species=='TSUGHET') #4716 obs
+ggplot(Hw, aes(y=TotalA, x=MAT, color=Site))+
+  geom_point()+
+  facet_wrap(~bgc)
+#geom_smooth(method='lm', se = F)#+
+#theme(legend.position = 'none')
+# xlim(-2.5, 12) #git rid of outliers 
+
+#Engelman Spruce
+Se<-subset(tree_dat, Species=='PICEENE') #4055 obs
+ggplot(Se, aes(y=TotalA, x=MAT, color=Site))+
+  geom_point()+
+  facet_wrap(~bgc)
+
+#Douglas Fir 
+Fd<-subset(tree_dat, Species=="PSEUMEN") #3705 obs
+ggplot(Fd, aes(y=TotalA, x=MAT, color=Site))+
+  geom_point()+
+  facet_wrap(~bgc)
+
+#Subalpine Fir
+Bl<-subset(tree_dat, Species=="ABIELAS") #4060 obs 
+ggplot(Bl, aes(y=TotalA, x=MAT, color=Site))+
+  geom_point()+
+  facet_wrap(~bgc)
+
+#Lodgepole Pine 
+Pl<-subset(tree_dat, Species=="PINUCON") #3164 obs
+ggplot(Pl, aes(y=TotalA, x=MAT, color=Site))+
+  geom_point()+
+  facet_wrap(~bgc)
+
+#Amabalis fir
+Ba<-subset(tree_dat, Species=="ABIEAMA") #1913 obs
+ggplot(Ba, aes(y=TotalA, x=MAT, color=Site))+
+  geom_point()+
+  facet_wrap(~bgc)
+
+#Mountain Hemlock
+Hm<-subset(tree_dat, Species=="TSUGMER") #1337 obs 
+ggplot(Hm, aes(y=TotalA, x=MAT, color=Site))+
+  geom_point()+ 
+  facet_wrap(~bgc) #why some blank here??
+
+#Yellow Cedar
+Yc<-subset(tree_dat, Species=="CALLNOO") #1187 obs
+ggplot(Yc, aes(y=TotalA, x=MAT, color=Site))+
+  geom_point()+
+  facet_wrap(~bgc)
+
+#Sitka Spruce 
+Ss<-subset(tree_dat, Species=="PICESIT") #939 obs (>1000 cut off?)
+ggplot(Ss, aes(y=TotalA, x=MAT, color=Site))+
+  geom_point()+
+  facet_wrap(~bgc)
+
+#Trembling Aspen 
+At<-subset(tree_dat, Species=="POPUTRE") #536 obs 
+ggplot(At, aes(y=TotalA, x=MAT, color=Site))+
+  geom_point()+
+  facet_wrap(~bgc)
+
+#Paper birch 
+Ep<-subset(tree_dat, Species=="BETUPAP") #531 obs 
+ggplot(Ep, aes(y=TotalA, x=MAT, color=Site))+
+  geom_point()+
+  facet_wrap(~bgc)
+
+#Ponderosa Pine
+Py<-subset(tree_dat, Species=="PINUPON") #568 obs
+ggplot(Py, aes(y=TotalA, x=MAT, color=Site))+
+  geom_point()+
+  facet_wrap(~bgc) 
+
+#White Spruce 
+Sw<-subset(tree_dat, Species=="PICEGLA")  #397 obs (<500 cut off?)
+ggplot(Sw, aes(y=TotalA, x=MAT, color=Site))+
+  geom_point()+
+  facet_wrap(~bgc) 
+
+#Western Larch 
+Lw<-subset(tree_dat, Species=="LARIOCC") #442 obs(<500 cut off?)
+ggplot(Lw, aes(y=TotalA, x=MAT, color=Site))+
+  geom_point()+
+  facet_wrap(~bgc) 
+
+#Black Spruce 
+Sb<-subset(tree_dat, Species=="PICEMAR") #313 obs (<500 cut off?)
+ggplot(Sb, aes(y=TotalA, x=MAT, color=Site))+
+  geom_point()+
+  facet_wrap(~bgc)
+
+#uneven sampling across BGCs by species, may need stronger threshold for number obs per BGC per site, species etc
+#currently n=2+ 
+
+#Save top 16 species level datasets---- 
+save(Cw, Hw, Se, Fd, Bl, Pl, Ba, Hm, Yc, Ss, At, Ep, Py, Sw, Lw, Sb, file="data/tree_spp_data_cleaned.Rdata")
+
+
 
 #bring in feas tables---- 
 feas_tab<-read.csv("data/FeasibilityUpdates.csv")#downloaded from ByBEC 6/3/24
 feas_tab2<-read.csv("data/Feasibility_v12_15.csv")#most recent version from ccisr/data-raw/data_tables/
 
-#check that feasibilities same between BYBEC and ccissr versions----
+#check that feasibilities same across versions----
 names(feas_tab)
 feas_tab2<-select(feas_tab2, bgc, ss_nospace, sppsplit, feasible, newfeas, mod)%>%rename(spp=sppsplit)
 diff<-anti_join(feas_tab, feas_tab2)
@@ -131,12 +327,12 @@ allfeas<-mutate(allfeas, check= if_else(newfeas2==newfeas, T, F)) #only 2 differ
 #CWHms1 CWHms1/03 Ba 3 2 SAS-HAK 3 FALSE
 
 
-
-#update species naming----
+#update species naming in feas tables----
 unique(sort(feas_tab2$spp))
 unique(sort(feas_tab$spp))
 
-feas_tab2<-mutate(feas_tab2, Species= case_when(spp=="Ba"~"ABIEAMA", 
+feas_tab2<-mutate(feas_tab2, Species= case_when(spp=="Ba"~"ABIEAMA",
+                                              spp=="Ra" ~"ARBUMEN",
                                               spp=="Bg"~"ABIEGRA", 
                                               spp=="Bl"~"ABIELAS", 
                                               spp=="Mb"~"ACERMAC", 
@@ -156,6 +352,7 @@ feas_tab2<-mutate(feas_tab2, Species= case_when(spp=="Ba"~"ABIEAMA",
                                               spp=="Pli"~"PINUCON", #interior
                                               spp=="Pyc"~"PINUPON",
                                               spp=="Pyi"~"PINUPON",
+                                              spp=="Pw"~"PINUMON",
                                               spp=="Acb"~"POPUBAL",
                                               spp=="At"~"POPUTRE",
                                               spp=="Act"~"POPUTRI",
@@ -167,6 +364,8 @@ feas_tab2<-mutate(feas_tab2, Species= case_when(spp=="Ba"~"ABIEAMA",
                                               spp=="Hw"~ "TSUGHET",
                                               spp=="Hm"~"TSUGMER")) 
 
+#read in plot data 
+#load(file="data/tree_data_cleaned.Rdata")
 
 tree_dat<-mutate(tree_dat, Species=if_else(Species=="PINUCON1"|Species=="PINUCON2","PINUCON", Species))%>%
   mutate(Species=if_else(Species=="PSEUMEN1"|Species=="PSEUMEN2","PSEUMEN", Species))
@@ -174,12 +373,15 @@ tree_dat<-mutate(tree_dat, Species=if_else(Species=="PINUCON1"|Species=="PINUCON
 sort(unique(feas_tab2$Species))
 sort(unique(tree_dat$Species))
 #have plot data but missing feasibility ratings on Pw (PINUMON-Western white pine), Tw (TAXUBRE-Western Yew) 
+#check on Arbutus, Acermac, Yew??
 
 #combine feas table with plot data----
 tree_datx<-mutate(tree_dat,  ss_nospace= gsub(" ", "", SiteUnit)) #create matching column to feas table
 tree_datx<-left_join(tree_datx, feas_tab2, relationship = "many-to-many")%>%rename(newfeas=newfeas2)
 #confirm that joined by ALL 3 columns: Species, bgc, ss_nospace 
-##may need to fix the 01 to 101s in several places so these can align correctly??
+
+###need to fix the 01 to 101s with crosswalks!!### 
+###RIGHT NOW NOT ALL SPP/SITES ARE MATCHED WITH FEASIBILITIES BECAUSE OF THIS 6/19/24
 
 #look at whether feasibility is reflective of plot level abundance by species 
 ggplot(tree_datx, aes(y=TotalA, x=newfeas))+
@@ -192,112 +394,8 @@ cors<- group_by(tree_datx, Species)%>%
   summarise(abun_feas_cor=cor(TotalA, newfeas, use="na.or.complete")) 
 max(cors$abun_feas_cor, na.rm = T)#-0.72 to +0.25 varies a lot by spp 
 min(cors$abun_feas_cor, na.rm = T)
-#two spp with pos correlations which is opposite of expected-> poor data coverage  
+
+#two spp with pos correlations which is opposite of expected-> poor data coverage->could be because of crosswalks   
 #POPUTRI 0.24638427
 #PINUALB 0.14793807 
 
-#look at most measured spp- 
-#Western red Cedar 
-Cw<-subset(tree_datx, Species=='THUJPLI')  #3814 obs
-ggplot(Cw, aes(y=TotalA, x=MAT, color=Site))+
-  geom_point()+
-  facet_wrap(~bgc) 
-#geom_smooth(method='lm', se = F)#+
-  #theme(legend.position = 'none')
-  #xlim(-2.5, 12) #git rid of outliers 
-
-#Western Hemlock
-Hw<-subset(tree_datx, Species=='TSUGHET') #4716 obs
-ggplot(Hw, aes(y=TotalA, x=MAT, color=Site))+
-  geom_point()+
-  facet_wrap(~bgc)
-  #geom_smooth(method='lm', se = F)#+
-  #theme(legend.position = 'none')
- # xlim(-2.5, 12) #git rid of outliers 
-
-#Engelman Spruce
-Se<-subset(tree_datx, Species=='PICEENE') #4055 obs
-ggplot(Se, aes(y=TotalA, x=MAT, color=Site))+
-  geom_point()+
-  facet_wrap(~bgc)
-
-#Douglas Fir 
-Fd<-subset(tree_datx, Species=="PSEUMEN") #3705 obs
-ggplot(Fd, aes(y=TotalA, x=MAT, color=Site))+
-  geom_point()+
-  facet_wrap(~bgc)
-
-#Subalpine Fir
-Bl<-subset(tree_datx, Species=="ABIELAS") #4060 obs 
-ggplot(Bl, aes(y=TotalA, x=MAT, color=Site))+
-  geom_point()+
-  facet_wrap(~bgc)
-
-#Lodgepole Pine 
-Pl<-subset(tree_datx, Species=="PINUCON") #3164 obs
-ggplot(Pl, aes(y=TotalA, x=MAT, color=Site))+
-  geom_point()+
-  facet_wrap(~bgc)
-
-#Amabalis fir
-Ba<-subset(tree_datx, Species=="ABIEAMA") #1913 obs
-ggplot(Ba, aes(y=TotalA, x=MAT, color=Site))+
-  geom_point()+
-  facet_wrap(~bgc)
-
-#Mountain Hemlock
-Hm<-subset(tree_datx, Species=="TSUGMER") #1337 obs 
-ggplot(Hm, aes(y=TotalA, x=MAT, color=Site))+
-  geom_point()+ 
-  facet_wrap(~bgc) #why some blank here??
-
-#Yellow Cedar
-Yc<-subset(tree_datx, Species=="CALLNOO") #1187 obs
-ggplot(Yc, aes(y=TotalA, x=MAT, color=Site))+
-  geom_point()+
-  facet_wrap(~bgc)
-
-#Sitka Spruce 
-Ss<-subset(tree_datx, Species=="PICESIT") #939 obs (>1000 cut off?)
-ggplot(Ss, aes(y=TotalA, x=MAT, color=Site))+
-  geom_point()+
-  facet_wrap(~bgc)
-
-#Trembling Aspen 
-At<-subset(tree_datx, Species=="POPUTRE") #536 obs 
-ggplot(At, aes(y=TotalA, x=MAT, color=Site))+
-  geom_point()+
-  facet_wrap(~bgc)
-
-#Paper birch 
-Ep<-subset(tree_datx, Species=="BETUPAP") #531 obs 
-ggplot(Ep, aes(y=TotalA, x=MAT, color=Site))+
-  geom_point()+
-  facet_wrap(~bgc)
-
-#Ponderosa Pine
-Py<-subset(tree_datx, Species=="PINUPON") #568 obs
-ggplot(Py, aes(y=TotalA, x=MAT, color=Site))+
-  geom_point()+
-  facet_wrap(~bgc) 
-
-#White Spruce 
-Sw<-subset(tree_datx, Species=="PICEGLA")  #397 obs (<500 cut off?)
-ggplot(Sw, aes(y=TotalA, x=MAT, color=Site))+
-  geom_point()+
-  facet_wrap(~bgc) 
-
-#Western Larch 
-Lw<-subset(tree_datx, Species=="LARIOCC") #442 obs(<500 cut off?)
-ggplot(Lw, aes(y=TotalA, x=MAT, color=Site))+
-  geom_point()+
-  facet_wrap(~bgc) 
-
-#Black Spruce 
-Sb<-subset(tree_datx, Species=="PICEMAR") #313 obs (<500 cut off?)
-ggplot(Sb, aes(y=TotalA, x=MAT, color=Site))+
-  geom_point()+
-  facet_wrap(~bgc)
-
-#uneven sampling across BGCs by species, may need stronger threshold for number obs per BGC per site, species etc
-#currently n=2+ 
