@@ -38,7 +38,7 @@ vars<-climr::variables #look up table for vars
 
 
 ## climr query for the historic data - only using 1961-1990 for now 
-#how to check the resolution of these data? 
+## what is the resolution/scale of these data? PRISM 800m downscaled to plot-level (accuracy of GPS points and elevation- double checks elev vals make bigger difference)
 
 clim_dat <- downscale(
   xyz = my_points, which_refmap = "auto", 
@@ -48,7 +48,7 @@ clim_dat <- downscale(
   #ssp = c("ssp370", "ssp245"), # specify two greenhouse gas concentration scenarios
   #gcm_period = c("2001_2020", "2041_2060"), # specify two 20-year periods
   #max_run = 3, # specify 3 individual runs for each model
-  vars = c("PPT", "MAT"))
+  vars = c("PPT", "MAT", "CMD", 'AHM', 'CMI'))
   
 #decide any other climate variables we want to include! 
 
