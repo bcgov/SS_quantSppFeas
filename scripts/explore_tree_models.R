@@ -143,7 +143,7 @@ priors <- c(set_prior("normal(0,1)", class = "Intercept"),
 mod.all4 <- brm(modform, tree_dat ,cores=3, chains=3, backend = "cmdstanr", threads = threading(4), prior = priors, 
                   #control = list(adapt_delta=0.99, max_treedepth = 11), 
                   iter=6000, warmup = 1000, init = 0, 
-                  file= "mod_allspp4.Rmd") 
+                  file= "outputs/mod_allspp4.Rmd") 
 summary(mod.all2)
 MCMCvis::MCMCtrace(mod.all)
 
