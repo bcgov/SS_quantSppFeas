@@ -9,6 +9,9 @@
 # User-specific files
 .Ruserdata
 
+#don't push spp model output files because too large 
+/outputs/
+
 # Example code in package build process
 *-Ex.R
 
@@ -48,3 +51,4 @@ po/*~
 
 # RStudio Connect folder
 rsconnect/
+
