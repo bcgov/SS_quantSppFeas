@@ -185,11 +185,16 @@ tree_dat<-left_join(tree_dat, SMRs)
 hist(tree_dat$StrataCoverTree) #normally distributed-ish  #is this all tree spp combined??
 hist(tree_dat$StrataCoverTotal) #what is this?
 hist(tree_dat$TotalA) #right skewed - beta dist?
+hist(log(tree_dat$TotalA)) #not bad... 
 
 #create a year column
 library(lubridate)
 tree_dat<-mutate(tree_dat,year=year(Date))
 names(tree_dat)
+
+#fix species names 
+tree_dat<-mutate(tree_dat, Species=if_else(Species=="PINUCON1"|Species=="PINUCON2","PINUCON", Species))%>%
+  mutate(Species=if_else(Species=="PSEUMEN1"|Species=="PSEUMEN2","PSEUMEN", Species))
 
 #save cleaned tree data----
 save(tree_dat, file="data/tree_data_cleaned.Rdata")
