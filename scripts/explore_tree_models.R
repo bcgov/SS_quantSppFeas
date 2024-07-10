@@ -12,6 +12,8 @@
 #load QA/QCed tree data----
 rm(list = ls())
 load(file="data/tree_data_cleaned.Rdata") #all
+gc()
+
 #filter to 16
 spp_tab0<-tree_dat%>%
   group_by(Species)%>%
@@ -21,12 +23,10 @@ spp_keep<-spp_keep$Species #16
 tree_dat<-subset(tree_dat, Species %in% spp_keep)
 unique(tree_dat$Species)              
 
-load(file="data/tree_spp_data_cleaned.Rdata") #top 16 spp individually
+#load(file="data/tree_spp_data_cleaned.Rdata") #top 16 spp individually
 
 #look at response variable
 hist(tree_dat$TotalA)
-
-hist(Cw$TotalA)
 
 #try beta distribution for total A response because it is proportional data (1-100)
 #scale these to 0,1 so can use Beta dist 
@@ -52,104 +52,166 @@ Yc$TotalA_scaled<-(Yc$TotalA)/100
 #check
 hist(tree_dat$TotalA_scaled)
 
-#can also try a normal distribution w/ logged response b/c easier to interpret results
+#can also try a normal distribution w/ logged response b/c easier to interpret results- but fails on homoscedasticity of residuals 
 hist(log(tree_dat$TotalA))
 tree_dat$TotalA_log<-log(tree_dat$TotalA)
 
+#random forest models----
+#get all climate variables 
+vars<-climr::variables #look up table for vars 
+var_names<-vars$Code
+#add response variable and a few other preds 
+var_names<-c("TotalA", "Species", "PlotNumber",  "NutrientRegime_clean", "MoistureRegime_clean", "SlopeGradient", "Aspect", "year", "bgc" , var_names)
+
+#create dataset with all preds for rf model 
+tree_dat_sub<-select(tree_dat, var_names)
+tree_dat_sub<-na.omit(tree_dat_sub)  #remove NAs
+
+#run model
+RFmodel_allspp <- ranger::ranger(
+  TotalA~ .,
+  data = tree_dat_sub,
+  splitrule = "maxstat",  
+  importance = 'permutation',
+  scale.permutation.importance = TRUE, 
+  mtry=253)
+print(RFmodel_allspp) #R2=0.22
+
+#look at importance of features
+importancedf<-as.data.frame(importance(RFmodel_allspp))
+
 #plot climate variables----
 #plot by edatopic grid space 
-ggplot(tree_dat, aes(y=TotalA, x=MAT, fill=MoistureRegime_clean))+
-  geom_point() + facet_wrap(~Species, scales = 'free') + 
-  geom_smooth()  + ylim(0,100)
+#look at factors marked important in RF
+# RH (whole year)
+#summer PPT
+#Eref autumn 
+#TD
+#PAS (whole year)- less impt
 
-ggplot(tree_dat, aes(y=TotalA, x=PPT, fill=MoistureRegime_clean))+
+ggplot(tree_dat, aes(y=TotalA, x=Eref_at, fill=MoistureRegime_clean))+ 
   geom_point() + facet_wrap(~Species, scales = 'free') + 
-  geom_smooth(method='lm')  + ylim(0,100)
-#remove outliers for PINUPON and PICEMAR 
-tree_dat<-subset(tree_dat, ID!=-1315162869 & ID!=1793185075)
+  #geom_smooth()  +
+  ylim(0,100)
 
-ggplot(tree_dat, aes(y=TotalA, x=AHM, fill=MoistureRegime_clean))+
+ggplot(tree_dat, aes(y=TotalA, x=PPT_sm))+ 
   geom_point() + facet_wrap(~Species, scales = 'free') + 
-  geom_smooth(method='lm')  + ylim(0,100)
+  geom_smooth()  +
+  ylim(0,100)
 
-ggplot(tree_dat, aes(y=TotalA, x=CMD, fill=MoistureRegime_clean))+
-  geom_point() + facet_wrap(~Species, scales = 'free') + 
-  geom_smooth(method='lm')  + ylim(0,100)
-
-ggplot(tree_dat, aes(y=TotalA, x=CMI, fill=MoistureRegime_clean))+
-  geom_point() + facet_wrap(~Species, scales = 'free') + 
-  geom_smooth(method='lm')  + ylim(0,100)
-
-ggplot(tree_dat, aes(y=TotalA, x=DD5, fill=MoistureRegime_clean))+
+ggplot(tree_dat, aes(y=TotalA, x=RH))+
   geom_point() + facet_wrap(~Species, scales = 'free') + 
   geom_smooth(method='lm')  + ylim(0,100)
 
 
-#model---- 
+ggplot(tree_dat, aes(y=TotalA, x=TD))+
+  geom_point() + facet_wrap(~Species, scales = 'free') + 
+  geom_smooth(method='lm')  + ylim(0,100)
+
+ggplot(tree_dat, aes(y=TotalA, x=SlopeGradient, fill=MoistureRegime_clean))+
+  geom_point() + facet_wrap(~Species, scales = 'free') + 
+  geom_smooth(method='lm')  + ylim(0,100)
+
+ggplot(tree_dat, aes(y=TotalA, x=PAS, fill=MoistureRegime_clean))+
+  geom_point() + facet_wrap(~Species, scales = 'free') + 
+  geom_smooth(method='lm')  + ylim(0,100)
+
+ggplot(tree_dat, aes(y=TotalA, x=year, fill=MoistureRegime_clean))+
+  geom_point() + facet_wrap(~Species, scales = 'free') + 
+  geom_smooth(method='lm')  + ylim(0,100)
+
+ggplot(tree_dat, aes(y=TotalA, x=as.factor(year)))+
+  geom_point() + facet_wrap(~Species, scales = 'free') + 
+  geom_smooth(method='lm')  + ylim(0,100)
+
+ggplot(tree_dat, aes(y=TotalA, x=bgc))+
+  geom_point() + facet_wrap(~Species, scales = 'free') + 
+  geom_smooth(method='lm')  + ylim(0,100)
+
+#check for collinearity among climate and enviro preds
+check_climate<-select(tree_dat, Eref_at, PAS, RH, PPT_sm, TD, SlopeGradient)
+pairs(check_climate)
+#RH and TD look highly correlated
+
+ggplot(tree_dat, aes(y=RH, x=TD))+
+  geom_point() + facet_wrap(~Species, scales = 'free') + 
+  geom_smooth(method='lm')  
+cor.test(tree_dat$RH, tree_dat$TD)#86% overall - too high- just use RH since higher importance
+
+#bayesian models---- 
 library(brms)
 library(tidyverse)
 
 #mean center continuous vars
-tree_dat$DD5_scaled<-scale(tree_dat$DD5)
-hist(tree_dat$DD5_scaled)
-tree_dat$CMI_scaled<-scale(tree_dat$CMI)
-hist(tree_dat$CMI_scaled)
-tree_dat$TD_scaled<-scale(tree_dat$TD)
-hist(tree_dat$TD_scaled)
-tree_dat$PPT_10_scaled<-scale(tree_dat$PPT_10)
-hist(tree_dat$PPT_10_scaled)
+#tree_dat$DD5_scaled<-scale(tree_dat$DD5)
+#hist(tree_dat$DD5_scaled)
+#tree_dat$CMI_scaled<-scale(tree_dat$CMI)
+#hist(tree_dat$CMI_scaled)
+#tree_dat$TD_scaled<-scale(tree_dat$TD)
+#hist(tree_dat$TD_scaled)
+#tree_dat$PPT_10_scaled<-scale(tree_dat$PPT_10)
+#hist(tree_dat$PPT_10_scaled)
 tree_dat$SlopeGradient_scaled<-scale(tree_dat$SlopeGradient)
 hist(tree_dat$SlopeGradient_scaled)
-tree_dat$Aspect_scaled<-scale(tree_dat$Aspect)
-hist(tree_dat$Aspect_scaled)
+#tree_dat$Aspect_scaled<-scale(tree_dat$Aspect)
+#hist(tree_dat$Aspect_scaled)
+tree_dat$RH_scaled<-scale(tree_dat$RH)
+tree_dat$Eref_at_scaled<-scale(tree_dat$Eref_at)
+tree_dat$PPT_sm_scaled<-scale(tree_dat$PPT_sm)
+tree_dat$PAS_scaled<-scale(tree_dat$PAS)
+tree_dat$year_scaled<- scale(tree_dat$year) #for changes over time in plot cover 
+
+#make a factor for year as well 
+tree_dat$year_factor<- as.factor(tree_dat$year) #for interannual differences in sampling intensity etc. - phi model 
+
+#set priors----
+#use set prior option to set to all coefs 
+priors <- c(set_prior("normal(2,1)", class = "Intercept"), #on logged intercept 
+            set_prior("normal(0, 0.5)", class = "b"), 
+            set_prior("cauchy(0,0.5)", class = "sd"), 
+            set_prior("cauchy(0, 0.5)", class = "sigma"))
+
 
 #model formulas----
+#v0- species separately 
+modform0<-bf(TotalA_log~ TD_scaled + PPT_10_scaled + SlopeGradient_scaled + Aspect_scaled + (TD_scaled + PPT_10_scaled + SlopeGradient_scaled + Aspect_scaled ||MoistureRegime_clean) +  
+     (TD_scaled + PPT_10_scaled + SlopeGradient_scaled + Aspect_scaled ||NutrientRegime_clean))
+
 # v1- using vars suggested by Kiri/Will DD5, CMI
 #beta dist
-#modform <- bf(TotalA_scaled~ DD5_scaled + CMI_scaled + (DD5_scaled + CMI_scaled||Species:MoistureRegime_clean) +  
-#                                        (DD5_scaled + CMI_scaled||Species:NutrientRegime_clean))
+modform <- bf(TotalA_scaled~ DD5_scaled + CMI_scaled + (DD5_scaled + CMI_scaled||Species:MoistureRegime_clean) +  
+                                        (DD5_scaled + CMI_scaled||Species:NutrientRegime_clean))
 
 # v2-try predictors found strongest Wang et al. 2012 Random Forest= TD, PPT_10
 #https://www2.gov.bc.ca/assets/gov/environment/natural-resource-stewardship/nrs-climate-change/applied-science/wangfinalreport.pdf
 #beta dist
-#modform <- bf(TotalA_scaled~ TD_scaled + PPT_10_scaled + (TD_scaled + PPT_10_scaled||Species:MoistureRegime_clean) +  
-#                (TD_scaled + PPT_10_scaled||Species:NutrientRegime_clean))
-# v3- normal dist
-#modform <- bf(TotalA_log~ TD_scaled + PPT_10_scaled + (TD_scaled + PPT_10_scaled||Species:MoistureRegime_clean) +  
-#                (TD_scaled + PPT_10_scaled||Species:NutrientRegime_clean))
-# v4- try with slope and aspect 
-modform <- bf(TotalA_log~ TD_scaled + PPT_10_scaled + SlopeGradient_scaled + Aspect_scaled + (TD_scaled + PPT_10_scaled||Species:MoistureRegime_clean) +  
+modform2 <- bf(TotalA_scaled~ TD_scaled + PPT_10_scaled + (TD_scaled + PPT_10_scaled||Species:MoistureRegime_clean) +  
                 (TD_scaled + PPT_10_scaled||Species:NutrientRegime_clean))
+# v3- normal dist, same preds
+modform3 <- bf(TotalA_log~ TD_scaled + PPT_10_scaled + (TD_scaled + PPT_10_scaled||Species:MoistureRegime_clean) +  
+                (TD_scaled + PPT_10_scaled||Species:NutrientRegime_clean))
+# v4- normal dist, add slope and aspect 
+modform4 <- bf(TotalA_log~ TD_scaled + PPT_10_scaled + SlopeGradient_scaled + Aspect_scaled + (TD_scaled + PPT_10_scaled||Species:MoistureRegime_clean) +  
+                (TD_scaled + PPT_10_scaled||Species:NutrientRegime_clean))
+# v5- normal dist- RH, Eref_at, PPT_sm, PAS - found by importance ranking from RF. plus year, bgc 
+modform5 <- bf(TotalA_log~ Eref_at_scaled + PPT_sm_scaled + RH_scaled + PAS_scaled + SlopeGradient_scaled + bgc + year_scaled + (Eref_at_scaled + PPT_sm_scaled + RH_scaled + PAS_scaled||Species:MoistureRegime_clean) +  
+                 (Eref_at_scaled + PPT_sm_scaled + RH_scaled + PAS_scaled||Species:NutrientRegime_clean))
+# v6- same as v5 but beta dist plus year_factor + species in phi model
 
-#set priors----
-#priors <- c(prior(normal(0,1),class=b),
-            #prior(normal(0,1),class=b, coef="DD5_scaled"),
-            #prior(normal(0,1),class=b, coef="CMI_scaled"),
-            #prior(normal(0,1),class=b, coef="TD_scaled"),
-            #prior(normal(0,1),class=b, coef="PPT_10_scaled"),
-#            prior(normal(0,1),class=Intercept),
-#            prior(cauchy(0,0.5), class = sd))#, 
-            #prior(cauchy(0,0.5), class = phi))
-
-#use set prior option to set to all coefs 
-priors <- c(set_prior("normal(0,1)", class = "Intercept"),
-            set_prior("normal(0, 1)", class = "b"),
-            set_prior("cauchy(0,0.5)", class = "sd"), 
-            set_prior("normal(0,1)", class = "sigma"))
 
 #run in brms----
 #all species together 
 #update model number and file name when running diff versions 
-mod.all4 <- brm(modform, tree_dat ,cores=3, chains=3, backend = "cmdstanr", threads = threading(4), prior = priors, 
+mod.all5 <- brm(modform5, tree_dat ,cores=3, chains=3, backend = "cmdstanr", threads = threading(4), prior = priors, 
                   #control = list(adapt_delta=0.99, max_treedepth = 11), 
-                  iter=6000, warmup = 1000, init = 0, 
-                  file= "outputs/mod_allspp4.Rmd") 
-summary(mod.all2)
-MCMCvis::MCMCtrace(mod.all)
+                  iter=6000, warmup = 1000, init = 0, family = gaussian(),
+                file= "outputs/brms/mod_allspp5.Rmd") 
+summary(mod.all5)
 
 
-pp_check(mod.all2) #looks okay 
-
-
-
-#climate, SNR, aSMR, aspect, slope 
+#try species separately??
+Hw<-subset(tree_dat, Species=='TSUGHET') #4716 obs 
+mod.HW<-brm(modform0, Hw ,cores=3, chains=3, backend = "cmdstanr", threads = threading(4), prior = priors, 
+            #control = list(adapt_delta=0.99, max_treedepth = 11), 
+            iter=6000, warmup = 1000, init = 0, 
+            file= "outputs/brms/mod_Hw.Rmd")
