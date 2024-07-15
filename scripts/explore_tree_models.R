@@ -166,6 +166,10 @@ tree_dat$year_factor<- as.factor(tree_dat$year) #for interannual differences in 
 
 #set priors----
 #use set prior option to set to all coefs 
+beta_priors <- c(set_prior("normal(0,1)", class = "Intercept"),  
+            set_prior("normal(0, 0.5)", class = "b"), 
+            set_prior("cauchy(0,0.5)", class = "sd"))
+
 priors <- c(set_prior("normal(2,1)", class = "Intercept"), #on logged intercept 
             set_prior("normal(0, 0.5)", class = "b"), 
             set_prior("cauchy(0,0.5)", class = "sd"), 
@@ -193,19 +197,22 @@ modform3 <- bf(TotalA_log~ TD_scaled + PPT_10_scaled + (TD_scaled + PPT_10_scale
 # v4- normal dist, add slope and aspect 
 modform4 <- bf(TotalA_log~ TD_scaled + PPT_10_scaled + SlopeGradient_scaled + Aspect_scaled + (TD_scaled + PPT_10_scaled||Species:MoistureRegime_clean) +  
                 (TD_scaled + PPT_10_scaled||Species:NutrientRegime_clean))
-# v5- normal dist- RH, Eref_at, PPT_sm, PAS - found by importance ranking from RF. plus year, bgc 
-modform5 <- bf(TotalA_log~ Eref_at_scaled + PPT_sm_scaled + RH_scaled + PAS_scaled + SlopeGradient_scaled + bgc + year_scaled + (Eref_at_scaled + PPT_sm_scaled + RH_scaled + PAS_scaled||Species:MoistureRegime_clean) +  
+# v5- normal dist- RH, Eref_at, PPT_sm, PAS - found by importance ranking from RF. plus year
+#should bgc go in this model?? if so, in nested group term or main model or both?? or nowhere bc climate already informs??
+modform5 <- bf(TotalA_log~ Eref_at_scaled + PPT_sm_scaled + RH_scaled + PAS_scaled + SlopeGradient_scaled + year_scaled + (Eref_at_scaled + PPT_sm_scaled + RH_scaled + PAS_scaled||Species:MoistureRegime_clean) +  
                  (Eref_at_scaled + PPT_sm_scaled + RH_scaled + PAS_scaled||Species:NutrientRegime_clean))
-# v6- same as v5 but beta dist plus year_factor + species in phi model
-
+# v6- same as v5 but beta dist plus year_factor + species in phi model and remove year from main model
+modform6 <- bf(TotalA_scaled~ Eref_at_scaled + PPT_sm_scaled + RH_scaled + PAS_scaled + (Eref_at_scaled + PPT_sm_scaled + RH_scaled + PAS_scaled||Species:MoistureRegime_clean) +  
+                 (Eref_at_scaled + PPT_sm_scaled + RH_scaled + PAS_scaled||Species:NutrientRegime_clean),
+                 phi~ Species + year_factor)
 
 #run in brms----
 #all species together 
 #update model number and file name when running diff versions 
-mod.all5 <- brm(modform5, tree_dat ,cores=3, chains=3, backend = "cmdstanr", threads = threading(4), prior = priors, 
+mod.all6 <- brm(modform6, tree_dat ,cores=6, chains=3, threads = threading(12), backend = "cmdstanr", prior = beta_priors, 
                   #control = list(adapt_delta=0.99, max_treedepth = 11), 
-                  iter=6000, warmup = 1000, init = 0, family = gaussian(),
-                file= "outputs/brms/mod_allspp5.Rmd") 
+                  iter=6000, warmup = 1000, init = 0, family = Beta(),
+                file= "outputs/brms/mod_allspp6.Rmd") 
 summary(mod.all5)
 
 
