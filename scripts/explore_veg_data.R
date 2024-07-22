@@ -9,6 +9,9 @@
 #See the License for the specific language governing permissions and
 #limitations under the License.
 
+#libraries 
+library(tidyverse)
+
 #pull in climate data ----
 cache_clear()
 source("scripts/climr_getdata.R") #ignore warnings
@@ -330,9 +333,12 @@ cor(allfeas$newfeas, allfeas$newfeas2)
 allfeas<-mutate(allfeas, check= if_else(newfeas2==newfeas, T, F)) #only 2 different
 #CWHms1 CWHms1/03 Ba 3 3 SAS-HAK 2 FALSE
 #CWHms1 CWHms1/03 Ba 3 2 SAS-HAK 3 FALSE
-
+rm(allfeas)
+rm(diff)
+rm(diff2)
 
 #update species naming in feas tables----
+#check that these are the same 
 unique(sort(feas_tab2$spp))
 unique(sort(feas_tab$spp))
 
@@ -368,25 +374,86 @@ feas_tab2<-mutate(feas_tab2, Species= case_when(spp=="Ba"~"ABIEAMA",
                                               spp=="Cw"~ "THUJPLI",
                                               spp=="Hw"~ "TSUGHET",
                                               spp=="Hm"~"TSUGMER")) 
+#rename to remove duplicates
+rm(feas_tab)
+feas_tab<-feas_tab2
+rm(feas_tab2)
+feas_tab<-rename(feas_tab, newfeas=newfeas2)
 
 #read in plot data 
-#load(file="data/tree_data_cleaned.Rdata")
+load(file="data/tree_data_cleaned.Rdata")
 
 tree_dat<-mutate(tree_dat, Species=if_else(Species=="PINUCON1"|Species=="PINUCON2","PINUCON", Species))%>%
   mutate(Species=if_else(Species=="PSEUMEN1"|Species=="PSEUMEN2","PSEUMEN", Species))
 
-sort(unique(feas_tab2$Species))
+sort(unique(feas_tab$Species))
 sort(unique(tree_dat$Species))
-#have plot data but missing feasibility ratings on Pw (PINUMON-Western white pine), Tw (TAXUBRE-Western Yew) 
-#check on Arbutus, Acermac, Yew??
+#have plot data but missing feasibility ratings on Tw (TAXUBRE-Western Yew) 
+
 
 #combine feas table with plot data----
-tree_datx<-mutate(tree_dat,  ss_nospace= gsub(" ", "", SiteUnit)) #create matching column to feas table
-tree_datx<-left_join(tree_datx, feas_tab2, relationship = "many-to-many")%>%rename(newfeas=newfeas2)
+tree_dat<-mutate(tree_dat,  ss_nospace= gsub(" ", "", SiteUnit)) #create matching column to feas table
+
+#filter feas table
+#take out the US and alberta stuff because it won't match plot data
+feas_tab<-filter(feas_tab, !grepl('_CA|_OR|_WA|_ID|_MT|_CA|_WY|_CO|_NV|UT|BSJP|abE|abN|abS|abE|abC|SBAP|SASbo|PPxh|MSd|MSx', bgc))
+#subset to only top 16 spp
+spp_tab0<-tree_dat%>%  group_by(Species)%>%  summarise(nobs=n())
+spp_keep<-subset(spp_tab0, nobs>300)
+feas_tab<-subset(feas_tab, Species %in% spp_keep$Species)
+rm(spp_tab0)
+
+#join
+#tree_datx<-left_join(tree_datx, feas_tab, relationship = "many-to-many")
+tree_datx<-left_join(tree_dat, feas_tab, relationship = "many-to-many")
 #confirm that joined by ALL 3 columns: Species, bgc, ss_nospace 
 
+#why did rows get added??
+names(tree_datx)
+tree_daty<-select(tree_datx, - spp, -feasible, -newfeas, -mod)
+extrarows<-setdiff(tree_dat, tree_daty) #0 rows->wtf??? 
+rm(tree_daty)
+
+checknas<-subset(tree_datx, is.na(newfeas)) #where merge failed (~half of the data)
+
+
+#some of these are missing species feasibility ratings, some are needing crosswalks & other issues  
+
 ###need to fix the 01 to 101s with crosswalks!!### 
-###RIGHT NOW NOT ALL SPP/SITES ARE MATCHED WITH FEASIBILITIES BECAUSE OF THIS 6/19/24
+sites<-select(checknas, bgc, ss_nospace)%>%distinct(.)
+sites<-separate(sites, ss_nospace, c("bgc", "edatope"), sep = "/", remove = F)
+sites$edatope2<-as.numeric(as.character(sites$edatope))
+sitesx<-subset(sites, edatope2>99) #filter out only ones needing crosswalks 
+sitesx$edatope2<-NULL
+write.csv(sitesx, "data/crosswalkforfeastables.csv")
+
+sites<-anti_join(sites, sitesx)
+sites$edatope2<-NULL
+listsites<-unique(sites$ss_nospace)
+missingfeas<-filter(checknas, ss_nospace %in% listsites)%>%
+  select(bgc, ss_nospace, Species)%>%distinct(.)
+unique(missingfeas$Species)
+missingfeas<-mutate(missingfeas, spp= case_when(Species=="ABIEAMA" ~"Ba",
+                                                Species=="ABIELAS" ~"Bl",
+                                                Species=="BETUPAP"~"Ep", 
+                                                Species=="PICEENE"~"Se",
+                                                Species=="PICEGLA"~"Sw",
+                                                Species=="PICEMAR"~"Sb",
+                                                Species=="PICEXLU"~ "Sxl",
+                                                Species=="PINUALB"~"Pa",
+                                                Species=="PINUCON"~"Pl",
+                                                Species=="PINUMON"~"Pw",
+                                                Species=="POPUTRE"~ "At",
+                                                Species=="POPUTRI"~ "Act",
+                                                Species=="PSEUMEN"~ "Fd",
+                                                Species== "THUJPLI"~ "Cw",
+                                                Species=="TSUGHET"~ "Hw")) 
+write.csv(sites, "data/missingfeas.csv")
+
+#crosswalks needed 
+#BWBS-LMH 65- Appendix 1
+#IDF/MS- LMH 71-2.2 table 1
+#IDF/ESSF/MS-LMH 75 
 
 #look at whether feasibility is reflective of plot level abundance by species 
 ggplot(tree_datx, aes(y=TotalA, x=newfeas))+
@@ -394,6 +461,12 @@ ggplot(tree_datx, aes(y=TotalA, x=newfeas))+
   facet_wrap(~Species) 
 
 cor.test(tree_datx$TotalA, tree_datx$newfeas) #-0.25
+
+ggplot(tree_datx, aes(y=TotalA, x=as.factor(newfeas)))+
+  #geom_point() +
+  geom_violin()
+
+group_by(tree_datx, newfeas)%>%summarise(meds=median(TotalA), mean=mean(TotalA))
 
 cors<- group_by(tree_datx, Species)%>% 
   summarise(abun_feas_cor=cor(TotalA, newfeas, use="na.or.complete")) 
@@ -403,4 +476,18 @@ min(cors$abun_feas_cor, na.rm = T)
 #two spp with pos correlations which is opposite of expected-> poor data coverage->could be because of crosswalks   
 #POPUTRI 0.24638427
 #PINUALB 0.14793807 
+
+
+#make a blank table with all site series and all species
+ssFULL<-read.csv("data/SiteSeries_names_v12_15.csv")
+ssFULL$SiteSeriesLongName<-NULL
+spp_tab0<-tree_dat%>%
+  group_by(Species)%>%
+  summarise(nobs=n())
+spp_keep<-subset(spp_tab0, nobs>300)
+ssxsppp<-expand.grid(ss_nospace=ssFULL$SS_NoSpace, Species=spp_keep$Species)
+
+allfeas<-left_join(ssxsppp, feas_tab)
+feasmatch<-subset(allfeas,!is.na(newfeas))
+feasissues<-anti_join(feas_tab, feasmatch)
 
