@@ -9,6 +9,9 @@
 #See the License for the specific language governing permissions and
 #limitations under the License.
 
+#libraries 
+library(tidyverse)
+
 #load QA/QCed tree data----
 rm(list = ls())
 load(file="data/tree_data_cleaned.Rdata") #all
@@ -32,23 +35,6 @@ hist(tree_dat$TotalA)
 #scale these to 0,1 so can use Beta dist 
 tree_dat$TotalA_scaled<-(tree_dat$TotalA)/100
 
-At$TotalA_scaled<-(At$TotalA)/100
-Ba$TotalA_scaled<-(Ba$TotalA)/100
-Bl$TotalA_scaled<-(Bl$TotalA)/100
-Cw$TotalA_scaled<-(Cw$TotalA)/100
-Ep$TotalA_scaled<-(Ep$TotalA)/100
-Fd$TotalA_scaled<-(Fd$TotalA)/100
-Hm$TotalA_scaled<-(Hm$TotalA)/100
-Hw$TotalA_scaled<-(Hw$TotalA)/100
-Lw$TotalA_scaled<-(Lw$TotalA)/100
-Pl$TotalA_scaled<-(Pl$TotalA)/100
-Py$TotalA_scaled<-(Py$TotalA)/100
-Sb$TotalA_scaled<-(Sb$TotalA)/100
-Se$TotalA_scaled<-(Se$TotalA)/100
-Ss$TotalA_scaled<-(Ss$TotalA)/100
-Sw$TotalA_scaled<-(Sw$TotalA)/100
-Yc$TotalA_scaled<-(Yc$TotalA)/100
-
 #check
 hist(tree_dat$TotalA_scaled)
 
@@ -56,99 +42,127 @@ hist(tree_dat$TotalA_scaled)
 hist(log(tree_dat$TotalA))
 tree_dat$TotalA_log<-log(tree_dat$TotalA)
 
-#random forest models----
+#plot climate variables----
+
 #get all climate variables 
 vars<-climr::variables #look up table for vars 
 var_names<-vars$Code
-#add response variable and a few other preds 
-var_names<-c("TotalA", "Species", "PlotNumber",  "NutrientRegime_clean", "MoistureRegime_clean", "SlopeGradient", "Aspect", "year", "bgc" , var_names)
+#add response variable and a few other preds to all climate data 
+#var_names<-c("TotalA", "Species", "NutrientRegime_clean", "MoistureRegime_clean", "SlopeGradient", "Aspect", "year", "bgc" , "Elevation" ,var_names)
+
+#subset predictor vars
+var_names<-c("TotalA", "Species", "NutrientRegime_clean", "MoistureRegime_clean", "year", "bgc" , "year", "bgc","Tmax_sm", "TD", "PPT_sm", "DD5_sp")
 
 #create dataset with all preds for rf model 
 tree_dat_sub<-select(tree_dat, var_names)
 tree_dat_sub<-na.omit(tree_dat_sub)  #remove NAs
 
+#check for correlation among climate vars
+pairs(tree_dat_sub[,c(7:10)])
+
+plot(tree_dat$DD5, tree_dat$Tmax_sm)
+cor.test(tree_dat$DD5, tree_dat$Tmax_sm)#correlated ~0.7 remove
+cor.test(tree_dat$DD5_sp, tree_dat$Tmax_sm)#correlated ~0.65 better
+plot(tree_dat$CMI, tree_dat$TD)
+cor.test(tree_dat$NFFD, tree_dat$TD) #r~ 0.45 ok 
+
+#random forest models----
 #run model
 RFmodel_allspp <- ranger::ranger(
   TotalA~ .,
   data = tree_dat_sub,
-  splitrule = "maxstat",  
+  splitrule = "maxstat",  #recommended for accurate importance feature ranking
   importance = 'permutation',
-  scale.permutation.importance = TRUE, 
-  mtry=253)
-print(RFmodel_allspp) #R2=0.22
+  mtry=11, 
+  scale.permutation.importance = TRUE)
+
+save(RFmodel_allspp, file="outputs/ranger/RFmodel5.Rdata")
+print(RFmodel_allspp) #R2 max=0.3
 
 #look at importance of features
-importancedf<-as.data.frame(importance(RFmodel_allspp))
+importancedf<-as.data.frame(ranger::importance(RFmodel_allspp))
 
-#plot climate variables----
-#plot by edatopic grid space 
-#look at factors marked important in RF
-# RH (whole year)
-#summer PPT
-#Eref autumn 
-#TD
-#PAS (whole year)- less impt
+# Split the dataset into training and testing sets
+set.seed(123) 
+train_indices <- sample(1:nrow(tree_dat_sub), 0.7 * nrow(tree_dat_sub)) # 70% of the data for training
+train_data <- tree_dat_sub[train_indices, ]
+test_data <- tree_dat_sub[-train_indices, ]
 
-ggplot(tree_dat, aes(y=TotalA, x=Eref_at, fill=MoistureRegime_clean))+ 
-  geom_point() + facet_wrap(~Species, scales = 'free') + 
-  #geom_smooth()  +
-  ylim(0,100)
+#try running again on training data to get more accurate R2 value
+RFmodel_allspp <- ranger::ranger(
+  TotalA~ .,
+  data = train_data,
+  splitrule = "maxstat",  #recommended for accurate importance feature ranking
+  importance = 'permutation',
+  mtry=9, 
+  scale.permutation.importance = TRUE)
 
-ggplot(tree_dat, aes(y=TotalA, x=PPT_sm))+ 
-  geom_point() + facet_wrap(~Species, scales = 'free') + 
-  geom_smooth()  +
-  ylim(0,100)
+save(RFmodel_allspp, file="outputs/ranger/RFmodel7.Rdata")
+print(RFmodel_allspp) #R2 max=0.3
 
-ggplot(tree_dat, aes(y=TotalA, x=RH))+
-  geom_point() + facet_wrap(~Species, scales = 'free') + 
-  geom_smooth(method='lm')  + ylim(0,100)
+# Predict on the test set
+preds <- predict(RFmodel_allspp, data = test_data)
+
+#regress
+plot(test_data$TotalA, preds$predictions)
+cor.test(test_data$TotalA, preds$predictions)#r=0.52, r2=0.27 (so about the same as OOB)
 
 
-ggplot(tree_dat, aes(y=TotalA, x=TD))+
-  geom_point() + facet_wrap(~Species, scales = 'free') + 
-  geom_smooth(method='lm')  + ylim(0,100)
+#ordinal forest models----
+# Convert totalA to an ordered factor
+#breaks from plot data (explore_veg_data.R)
+#newfeas  meds  mean
+#       1    17 21.8 
+#       2    10 16.2 
+#       3     5  9.64
+#       4     2  2   
+#       5     2  4.67
 
-ggplot(tree_dat, aes(y=TotalA, x=SlopeGradient, fill=MoistureRegime_clean))+
-  geom_point() + facet_wrap(~Species, scales = 'free') + 
-  geom_smooth(method='lm')  + ylim(0,100)
+tree_dat_sub<-mutate(tree_dat_sub, cover_rank=case_when(TotalA>20~1, 
+                                                         TotalA<7.5~3, 
+                                                         TRUE~2))
+hist(tree_dat_sub$cover_rank)
 
-ggplot(tree_dat, aes(y=TotalA, x=PAS, fill=MoistureRegime_clean))+
-  geom_point() + facet_wrap(~Species, scales = 'free') + 
-  geom_smooth(method='lm')  + ylim(0,100)
+group_by(tree_dat_sub, cover_rank)%>%summarise(counts=n())#about even
 
-ggplot(tree_dat, aes(y=TotalA, x=year, fill=MoistureRegime_clean))+
-  geom_point() + facet_wrap(~Species, scales = 'free') + 
-  geom_smooth(method='lm')  + ylim(0,100)
+#set as ordinal factor
+tree_dat_sub$cover_rank<-ordered(tree_dat_sub$cover_rank, levels = c(3, 2, 1))
+str(tree_dat_sub)#good 
 
-ggplot(tree_dat, aes(y=TotalA, x=as.factor(year)))+
-  geom_point() + facet_wrap(~Species, scales = 'free') + 
-  geom_smooth(method='lm')  + ylim(0,100)
+#remove continuous response
+tree_dat_sub$TotalA<-NULL
 
-ggplot(tree_dat, aes(y=TotalA, x=bgc))+
-  geom_point() + facet_wrap(~Species, scales = 'free') + 
-  geom_smooth(method='lm')  + ylim(0,100)
+# Split the dataset into training and testing sets
+set.seed(123) 
+train_indices <- sample(1:nrow(tree_dat_sub), 0.7 * nrow(tree_dat_sub)) # 70% of the data for training
+train_data <- tree_dat_sub[train_indices, ]
+test_data <- tree_dat_sub[-train_indices, ]
 
-#check for collinearity among climate and enviro preds
-check_climate<-select(tree_dat, Eref_at, PAS, RH, PPT_sm, TD, SlopeGradient)
-pairs(check_climate)
-#RH and TD look highly correlated
+#Fit the ordinal random forest model
+library(ordinalForest)
+RFord <- ordfor(depvar = "cover_rank", data = train_data, mtry = 9, ntreefinal = 1000)  
+save(RFord, file="outputs/ordinalForest/RFordmodel2.Rdata")
 
-ggplot(tree_dat, aes(y=RH, x=TD))+
-  geom_point() + facet_wrap(~Species, scales = 'free') + 
-  geom_smooth(method='lm')  
-cor.test(tree_dat$RH, tree_dat$TD)#86% overall - too high- just use RH since higher importance
+# Predict on the test set
+preds <- predict(RFord, newdata=test_data)
+
+#confusion matrix 
+conf_mat<-table('true'=test_data$cover_rank, 'predicted'=preds$ypred) #predicts data wrong about 50% of the time 
+accuracy <- sum(diag(conf_mat)) / sum(conf_mat) #acc = 0.5
+
+
 
 #bayesian models---- 
 library(brms)
 library(tidyverse)
 
 #mean center continuous vars
-#tree_dat$DD5_scaled<-scale(tree_dat$DD5)
-#hist(tree_dat$DD5_scaled)
+tree_dat$DD5_sp_scaled<-scale(tree_dat$DD5_sp)
+hist(tree_dat$DD5_sp_scaled)
 #tree_dat$CMI_scaled<-scale(tree_dat$CMI)
 #hist(tree_dat$CMI_scaled)
-#tree_dat$TD_scaled<-scale(tree_dat$TD)
-#hist(tree_dat$TD_scaled)
+tree_dat$TD_scaled<-scale(tree_dat$TD)
+hist(tree_dat$TD_scaled)
 #tree_dat$PPT_10_scaled<-scale(tree_dat$PPT_10)
 #hist(tree_dat$PPT_10_scaled)
 tree_dat$SlopeGradient_scaled<-scale(tree_dat$SlopeGradient)
@@ -160,6 +174,7 @@ tree_dat$Eref_at_scaled<-scale(tree_dat$Eref_at)
 tree_dat$PPT_sm_scaled<-scale(tree_dat$PPT_sm)
 tree_dat$PAS_scaled<-scale(tree_dat$PAS)
 tree_dat$year_scaled<- scale(tree_dat$year) #for changes over time in plot cover 
+tree_dat$Tmax_sm_scaled<-scale(tree_dat$Tmax_sm)
 
 #make a factor for year as well 
 tree_dat$year_factor<- as.factor(tree_dat$year) #for interannual differences in sampling intensity etc. - phi model 
@@ -213,7 +228,7 @@ mod.all6 <- brm(modform6, tree_dat ,cores=6, chains=3, threads = threading(12), 
                   #control = list(adapt_delta=0.99, max_treedepth = 11), 
                   iter=6000, warmup = 1000, init = 0, family = Beta(),
                 file= "outputs/brms/mod_allspp6.Rmd") 
-summary(mod.all5)
+summary(mod_allspp6.Rmd)
 
 
 #try species separately??
@@ -222,3 +237,29 @@ mod.HW<-brm(modform0, Hw ,cores=3, chains=3, backend = "cmdstanr", threads = thr
             #control = list(adapt_delta=0.99, max_treedepth = 11), 
             iter=6000, warmup = 1000, init = 0, 
             file= "outputs/brms/mod_Hw.Rmd")
+pp_check(mod_allspp6.Rmd)
+
+
+#try with ordinal response---- 
+#https://bookdown.org/content/3686/ordinal-predicted-variable.html
+#https://kevinstadler.github.io/notes/bayesian-ordinal-regression-with-random-effects-using-brms/
+
+#transform response 
+tree_dat<-mutate(tree_dat, cover_rank=case_when(TotalA>20~1, 
+                                                        TotalA<7.5~3, 
+                                                        TRUE~2))
+#set as ordinal factor
+tree_dat$cover_rank<-ordered(tree_dat$cover_rank, levels = c(3, 2, 1))
+
+#set priors 
+priors <- c(set_prior("normal(0,4)", class = "Intercept"), 
+            set_prior("normal(0, 1)", class = "sd"),
+            set_prior("normal(0, 0.5)", class = "b"))
+                     
+modform_ord<-bf(cover_rank~ PPT_sm_scaled + TD_scaled + DD5_sp_scaled + Tmax_sm_scaled+ (PPT_sm_scaled + TD_scaled + DD5_sp_scaled + Tmax_sm_scaled||Species:MoistureRegime_clean) +  
+                  (PPT_sm_scaled + TD_scaled + DD5_sp_scaled + Tmax_sm_scaled||Species:NutrientRegime_clean))
+
+mod_ord<-brm(modform_ord, tree_dat,cores=3, chains=3, backend = "cmdstanr", threads = threading(4), prior = priors, 
+    control = list(adapt_delta=0.99, max_treedepth = 11), 
+    iter=6000, warmup = 1000, init = 0, family=  cumulative("probit"),
+    file= "outputs/brms/mod_ord")
