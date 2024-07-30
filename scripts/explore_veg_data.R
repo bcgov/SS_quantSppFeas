@@ -16,7 +16,6 @@ library(tidyverse)
 cache_clear()
 source("scripts/climr_getdata.R") #ignore warnings
 
-
 #merge with veg data---- 
 veg_dat<-BEC_data$veg
 all_dat<-left_join(veg_dat, plot_dat)#join with plot & climate info 
@@ -199,10 +198,17 @@ names(tree_dat)
 tree_dat<-mutate(tree_dat, Species=if_else(Species=="PINUCON1"|Species=="PINUCON2","PINUCON", Species))%>%
   mutate(Species=if_else(Species=="PSEUMEN1"|Species=="PSEUMEN2","PSEUMEN", Species))
 
-#save cleaned tree data----
-save(tree_dat, file="data/tree_data_cleaned.Rdata")
 
 #look at most measured spp----- 
+spp_tab0<-tree_dat%>%
+  group_by(Species)%>%
+  summarise(nobs=n())
+spp_keep<-subset(spp_tab0, nobs>300)
+spp_keep<-spp_keep$Species #16 
+#filter to 16
+tree_dat<-subset(tree_dat, Species %in% spp_keep)
+unique(tree_dat$Species)              
+
 #Western red Cedar 
 Cw<-subset(tree_dat, Species=='THUJPLI')  #3814 obs
 ggplot(Cw, aes(y=TotalA, x=MAT, color=Site))+
@@ -308,10 +314,40 @@ ggplot(Sb, aes(y=TotalA, x=MAT, color=Site))+
 #uneven sampling across BGCs by species, may need stronger threshold for number obs per BGC per site, species etc
 #currently n=2+ 
 
-#Save top 16 species level datasets---- 
-save(Cw, Hw, Se, Fd, Bl, Pl, Ba, Hm, Yc, Ss, At, Ep, Py, Sw, Lw, Sb, file="data/tree_spp_data_cleaned.Rdata")
+#save cleaned tree data----
+save(tree_dat, file="data/tree_data_cleaned.Rdata")
 
+#Save top 16 species level datasets
+#save(Cw, Hw, Se, Fd, Bl, Pl, Ba, Hm, Yc, Ss, At, Ep, Py, Sw, Lw, Sb, file="data/tree_spp_data_cleaned.Rdata")
 
+#add zeroes to plots where species not observed---- 
+tree_dat_wzeros<-expand.grid(PlotNumber=unique(tree_dat$PlotNumber), Species=spp_keep)
+#bring back in climate data by plot 
+source("scripts/climr_getdata.R") #ignore warnings
+tree_dat_wzeros<-left_join(tree_dat_wzeros, plot_dat)
+#merge back in plot data (minus climate)
+names(tree_dat)
+tree_dat<-select(tree_dat,  PlotNumber, Species, TotalA, ID, ProjectID, Date, SiteSurveyor,
+  PlotRepresenting, Location, Longitude, Latitude, LocationAccuracy, SubZone, SiteSeries, MoistureRegime,           
+  NutrientRegime, Elevation, SlopeGradient, Aspect, MesoSlopePosition, SubstrateDecWood, SubstrateBedRock,
+  SubstrateRocks, SubstrateMineralSoil, SubstrateOrganicMatter, SubstrateWater, SurficialMaterialSurf, SoilDrainage,           
+  HumusForm, StrataCoverTree, StrataCoverShrub, StrataCoverHerb, StrataCoverMoss, UserSiteUnit, GIS_BGC, GIS_BGC_VER,
+  StrataCoverTotal, Elevation_overlay, SiteUnit, Site, bgc, NutrientRegime_clean, MoistureRegime_clean, year)
+#pull out tree cover 
+plot_dat2<-select(tree_dat, -Species, -TotalA, -ID)%>%distinct(.)
+tree_dat_wzeros<-left_join(tree_dat_wzeros, plot_dat2) #check warnings about duplicated info 
+tree_dat_wzeros<-distinct(tree_dat_wzeros)
+#put tree cover back in 
+tree_dat2<-select(tree_dat, PlotNumber, Species, TotalA, ID)%>%distinct(.)
+tree_dat_wzeros<-left_join(tree_dat_wzeros, tree_dat2)%>%relocate(c(TotalA, ID), .after = Species)
+
+#now add in zeroes where total A is NA
+tree_dat_wzeros<-mutate(tree_dat_wzeros, TotalA=if_else(is.na(TotalA), 0, TotalA))
+
+hist(tree_dat_wzeros$TotalA) #very zero inflated 
+
+#save
+save(tree_dat_wzeros, file="data/tree_data_cleaned_wzeros.Rdata")
 
 #bring in feas tables---- 
 feas_tab<-read.csv("data/FeasibilityUpdates.csv")#downloaded from ByBEC 6/3/24
