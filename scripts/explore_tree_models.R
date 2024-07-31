@@ -14,33 +14,11 @@ library(tidyverse)
 
 #load QA/QCed tree data----
 rm(list = ls())
-load(file="data/tree_data_cleaned.Rdata") #all
+#load(file="data/tree_data_cleaned.Rdata") #cover data only 
+load(file="data/tree_data_cleaned_wzeros.Rdata") #with absences
+tree_dat<-tree_dat_wzeros #rename
+rm(tree_dat_wzeros)
 gc()
-
-#filter to 16
-spp_tab0<-tree_dat%>%
-  group_by(Species)%>%
-  summarise(nobs=n())
-spp_keep<-subset(spp_tab0, nobs>300)
-spp_keep<-spp_keep$Species #16 
-tree_dat<-subset(tree_dat, Species %in% spp_keep)
-unique(tree_dat$Species)              
-
-#load(file="data/tree_spp_data_cleaned.Rdata") #top 16 spp individually
-
-#look at response variable
-hist(tree_dat$TotalA)
-
-#try beta distribution for total A response because it is proportional data (1-100)
-#scale these to 0,1 so can use Beta dist 
-tree_dat$TotalA_scaled<-(tree_dat$TotalA)/100
-
-#check
-hist(tree_dat$TotalA_scaled)
-
-#can also try a normal distribution w/ logged response b/c easier to interpret results- but fails on homoscedasticity of residuals 
-hist(log(tree_dat$TotalA))
-tree_dat$TotalA_log<-log(tree_dat$TotalA)
 
 #plot climate variables----
 
@@ -51,7 +29,7 @@ var_names<-vars$Code
 #var_names<-c("TotalA", "Species", "NutrientRegime_clean", "MoistureRegime_clean", "SlopeGradient", "Aspect", "year", "bgc" , "Elevation" ,var_names)
 
 #subset predictor vars
-var_names<-c("TotalA", "Species", "NutrientRegime_clean", "MoistureRegime_clean", "year", "bgc" , "year", "bgc","Tmax_sm", "TD", "PPT_sm", "DD5_sp")
+var_names<-c("TotalA", "Species", "NutrientRegime_clean", "MoistureRegime_clean","Tmax_sm", "TD", "PPT_sm", "DD5_sp")
 
 #create dataset with all preds for rf model 
 tree_dat_sub<-select(tree_dat, var_names)
@@ -119,15 +97,16 @@ cor.test(test_data$TotalA, preds$predictions)#r=0.52, r2=0.27 (so about the same
 #       5     2  4.67
 
 tree_dat_sub<-mutate(tree_dat_sub, cover_rank=case_when(TotalA>20~1, 
-                                                         TotalA<7.5~3, 
+                                                         TotalA>0 & TotalA<7.5~3,
+                                                        TotalA==0 ~0, 
                                                          TRUE~2))
 hist(tree_dat_sub$cover_rank)
 
-group_by(tree_dat_sub, cover_rank)%>%summarise(counts=n())#about even
+group_by(tree_dat_sub, cover_rank)%>%summarise(counts=n())#about even for 1, 2,3
 
 #set as ordinal factor
-tree_dat_sub$cover_rank<-ordered(tree_dat_sub$cover_rank, levels = c(3, 2, 1))
-str(tree_dat_sub)#good 
+tree_dat_sub$cover_rank<-ordered(tree_dat_sub$cover_rank, levels = c(0, 3, 2, 1))
+str(tree_dat_sub$cover_rank)#good 
 
 #remove continuous response
 tree_dat_sub$TotalA<-NULL
@@ -140,21 +119,42 @@ test_data <- tree_dat_sub[-train_indices, ]
 
 #Fit the ordinal random forest model
 library(ordinalForest)
-RFord <- ordfor(depvar = "cover_rank", data = train_data, mtry = 9, ntreefinal = 1000)  
-save(RFord, file="outputs/ordinalForest/RFordmodel2.Rdata")
+RFord <- ordfor(depvar = "cover_rank", mtry=7, data = train_data, ntreefinal = 1000)  
+save(RFord, file="outputs/ordinalForest/RFordmodel5.Rdata")
 
 # Predict on the test set
 preds <- predict(RFord, newdata=test_data)
 
 #confusion matrix 
-conf_mat<-table('true'=test_data$cover_rank, 'predicted'=preds$ypred) #predicts data wrong about 50% of the time 
-accuracy <- sum(diag(conf_mat)) / sum(conf_mat) #acc = 0.5
-
+conf_mat<-table('true'=test_data$cover_rank, 'predicted'=preds$ypred) 
+accuracy <- sum(diag(conf_mat)) / sum(conf_mat) #acc = 0.88
 
 
 #bayesian models---- 
 library(brms)
 library(tidyverse)
+
+#re-load data- if needed 
+load(file="data/tree_data_cleaned_wzeros.Rdata") 
+#load(file="data/tree_data_cleaned.Rdata") #all
+
+tree_dat<-tree_dat_wzeros
+rm(tree_dat_wzeros)
+gc()
+
+#look at response variable
+hist(tree_dat$TotalA)
+
+#try beta distribution for total A response because it is proportional data (1-100)
+#scale these to 0,1 so can use Beta dist 
+tree_dat$TotalA_scaled<-(tree_dat$TotalA)/100
+
+#check
+hist(tree_dat$TotalA_scaled)
+
+#can also try a normal distribution w/ logged response b/c easier to interpret results- but fails on homoscedasticity of residuals 
+hist(log(tree_dat$TotalA))
+tree_dat$TotalA_log<-log(tree_dat$TotalA)
 
 #mean center continuous vars
 tree_dat$DD5_sp_scaled<-scale(tree_dat$DD5_sp)
@@ -246,10 +246,12 @@ pp_check(mod_allspp6.Rmd)
 
 #transform response 
 tree_dat<-mutate(tree_dat, cover_rank=case_when(TotalA>20~1, 
-                                                        TotalA<7.5~3, 
-                                                        TRUE~2))
+                                                TotalA>0 & TotalA<7.5~3,
+                                                TotalA==0 ~0, 
+                                                TRUE~2))
 #set as ordinal factor
-tree_dat$cover_rank<-ordered(tree_dat$cover_rank, levels = c(3, 2, 1))
+tree_dat$cover_rank<-ordered(tree_dat$cover_rank, levels = c(0,3, 2, 1))
+str(tree_dat$cover_rank)
 
 #set priors 
 priors <- c(set_prior("normal(0,4)", class = "Intercept"), 
@@ -262,4 +264,4 @@ modform_ord<-bf(cover_rank~ PPT_sm_scaled + TD_scaled + DD5_sp_scaled + Tmax_sm_
 mod_ord<-brm(modform_ord, tree_dat,cores=3, chains=3, backend = "cmdstanr", threads = threading(4), prior = priors, 
     control = list(adapt_delta=0.99, max_treedepth = 11), 
     iter=6000, warmup = 1000, init = 0, family=  cumulative("probit"),
-    file= "outputs/brms/mod_ord")
+    file= "outputs/brms/mod_ord2")

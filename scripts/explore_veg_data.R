@@ -321,7 +321,20 @@ save(tree_dat, file="data/tree_data_cleaned.Rdata")
 #save(Cw, Hw, Se, Fd, Bl, Pl, Ba, Hm, Yc, Ss, At, Ep, Py, Sw, Lw, Sb, file="data/tree_spp_data_cleaned.Rdata")
 
 #add zeroes to plots where species not observed---- 
+rm(list = ls())
+load(file="data/tree_data_cleaned.Rdata")
+
+spp_tab0<-tree_dat%>%
+  group_by(Species)%>%
+  summarise(nobs=n())
+spp_keep<-spp_tab0$Species #16 
+
+#filter to 16
+tree_dat<-subset(tree_dat, Species %in% spp_keep)
+unique(tree_dat$Species)   
+
 tree_dat_wzeros<-expand.grid(PlotNumber=unique(tree_dat$PlotNumber), Species=spp_keep)
+
 #bring back in climate data by plot 
 source("scripts/climr_getdata.R") #ignore warnings
 tree_dat_wzeros<-left_join(tree_dat_wzeros, plot_dat)
