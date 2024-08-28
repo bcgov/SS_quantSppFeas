@@ -360,7 +360,7 @@ tree_dat_wzeros<-mutate(tree_dat_wzeros, TotalA=if_else(is.na(TotalA), 0, TotalA
 hist(tree_dat_wzeros$TotalA) #very zero inflated 
 
 #save
-save(tree_dat_wzeros, file="data/tree_data_cleaned_wzeros.Rdata")
+save(tree_dat_wzeros, file="data/tree_data_cleaned_wzeros.Rdata") #too big to push- save locally 
 
 #bring in feas tables---- 
 feas_tab<-read.csv("data/FeasibilityUpdates.csv")#downloaded from ByBEC 6/3/24

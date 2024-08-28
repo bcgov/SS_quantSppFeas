@@ -52,3 +52,5 @@ po/*~
 # RStudio Connect folder
 rsconnect/
 
+#Too big to push-save locally 
+data/tree_data_cleaned_wzeros.Rdata
