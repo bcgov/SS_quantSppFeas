@@ -17,7 +17,7 @@ library(terra)
 library(data.table)
 
 ## provide a data.frame or data.table of point coordinates, IDs and elevation
-BEC_data<-readRDS("data/BEC_data.rds")
+BEC_data<-readRDS("data/BEC_data.rds") #change this to OS #13 
 
 #pull out plot data 
 plot_dat<-BEC_data$env #70,547 plots
@@ -52,7 +52,9 @@ clim_dat <- downscale(
  vars=var_names) 
 
 #decide any other climate variables we want to include! 
-
+#add derived variables used in BGC projections 
+source("scripts/addVars.R")
+addVars(clim_dat)
 
 #sanity check
 #merge back with plot data 
