@@ -32,7 +32,7 @@ gc()
 
 #look at data across species/sites 
 #match with updated site series info from Will 5/16/24
-ss_cleaned<-read.csv('data/updated_siteseries.csv') #what defines why these plots are 'good'??
+ss_cleaned<-read.csv('data/updated_siteseries.csv') #what defines why these plots are 'good'?? 
 all_dat<-left_join(all_dat, ss_cleaned) 
 
 #remove anything not designated A BEC or BGC Unit from Will's list and that is not tree layer (TotalA)
@@ -360,9 +360,10 @@ tree_dat_wzeros<-mutate(tree_dat_wzeros, TotalA=if_else(is.na(TotalA), 0, TotalA
 hist(tree_dat_wzeros$TotalA) #very zero inflated 
 
 #save
-save(tree_dat_wzeros, file="data/tree_data_cleaned_wzeros.Rdata") #too big to push- save locally 
+save(tree_dat_wzeros, file="data/tree_data_cleaned_wzeros.Rdata") #too big to push- save on OS #13
 
 #bring in feas tables---- 
+#NOT CURRENTLY USING
 feas_tab<-read.csv("data/FeasibilityUpdates.csv")#downloaded from ByBEC 6/3/24
 feas_tab2<-read.csv("data/Feasibility_v12_15.csv")#most recent version from ccisr/data-raw/data_tables/
 
