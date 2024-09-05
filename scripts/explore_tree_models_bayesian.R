@@ -146,13 +146,10 @@ modform_ord<-bf(cover_rank~
                   (PPT_sm_scaled + TD_scaled + DD5_sp_scaled + Tmax_sm_scaled||Species:MoistureRegime_clean) +  
                   (PPT_sm_scaled + TD_scaled + DD5_sp_scaled + Tmax_sm_scaled||Species:NutrientRegime_clean))
 
-#set Moisture/Nutrient regimes to ordinal 
+#set Moisture/Nutrient regimes to ordinal  and run as a fixed interaction with climate vars- TO DO!!
+#still not sure if this is what we want...  
 modform_ord<-bf(cover_rank~ (PPT_sm_scaled + TD_scaled + DD5_sp_scaled + Tmax_sm_scaled) * MoistureRegime_clean||Species)+
-  (PPT_sm_scaled + TD_scaled + DD5_sp_scaled + Tmax_sm_scaled) * NutrientRegime_clean||Species)
-
-(PPT_sm_scaled + TD_scaled + DD5_sp_scaled + Tmax_sm_scaled) * MoistureRegime_clean ||Species)
-str(tree_dat$MoistureRegime_clean)
-
+  (PPT_sm_scaled + TD_scaled + DD5_sp_scaled + Tmax_sm_scaled) * (NutrientRegime_clean||Species)
 
 #trying for subset of spp 
 tree_dat_sub<-subset(tree_dat, Species =="TSUGHET"|Species=="PSEUMEN"|Species=="PINUCON")
@@ -161,4 +158,4 @@ mod_ord<-brm(modform_ord, tree_dat_sub,cores=3, chains=3, backend = "cmdstanr", 
              control = list(adapt_delta=0.99, max_treedepth = 11), 
              iter=6000, warmup = 1000, init = 0, family=  cumulative(),
              file= "outputs/brms/mod_ord3") 
-summary(mod_ord)
+summary(mod_ord3)

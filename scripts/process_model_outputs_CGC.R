@@ -111,7 +111,6 @@ ggplot(data=SNRslopes, aes(y = as.factor(SNR) , x=Estimate.TD_scaled)) +
 ppc<-pp_check(mod_ord) #looks good
 #save(ppc, file='outputs/brms/ppcheck_modallspp.Rdata')
 
-#plot for predictive accuracy----
 #load(file = "outputs/brms/ppcheck_modallspp.Rdata")
 ppcdata<-ppc$data
 obsdata<-subset(ppcdata, is_y==TRUE)
@@ -121,18 +120,22 @@ obsdatax<-select(obsdata, y_id, value)%>%rename(value0=value)
   
 alldata<-left_join(obsdatax, preddata)
 
-#create confusion matrix
+#create confusion matrix----
 alldata$value0<-as.factor(alldata$value0)
 alldata$value<-as.factor(alldata$value)
 
-CM<-caret::confusionMatrix(data=alldata$value, reference=alldata$value0) # Accuracy : 0.3973 
+CM<-caret::confusionMatrix(data=alldata$value, reference=alldata$value0) 
+print(CM) #Accuracy 0.6423 overall -> good at 0s and somewhat 3s, bad at 1s & 2s 
+#               Class: 1 Class: 2 Class: 3 Class: 4
+#Pos Pred Value   0.8147 0.102617  0.15805  0.35996
 cmtab<-as.data.frame(CM$table)
+
 ggplot(data=cmtab, aes(y = Prediction, x=Reference, fill=Freq)) + 
   geom_tile()+ 
   ylab("Predicted") + xlab("Observed") +
    theme_bw()+  scale_fill_gradient(low="white", high="darkgreen")
 
-#make plot nicer
+#plot for predictive accuracy----
 #with stat lineribbon 
 #png(file = "figures/ppc_plot3.png", width = 8, height = 8, units = 'in', res = 300)
 ggplot(data=alldata, aes(y = value, x=value0)) + 
