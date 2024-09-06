@@ -15,12 +15,12 @@ library(tidyverse)
 #load QA/QCed tree data----
 rm(list = ls())
 #load(file="data/tree_data_cleaned.Rdata") #cover data only 
-load(file="data/tree_data_cleaned_wzeros.Rdata") #with absences #update to local path 
+load(file="data/tree_data_cleaned_wzeros.Rdata") #with absences #update to OS path #13
 tree_dat<-tree_dat_wzeros #rename
 rm(tree_dat_wzeros)
 gc()
 
-#plot climate variables----
+#climate variables----
 
 #get all climate variables 
 vars<-climr::variables #look up table for vars 
@@ -29,20 +29,58 @@ var_names<-vars$Code
 #var_names<-c("TotalA", "Species", "NutrientRegime_clean", "MoistureRegime_clean", "SlopeGradient", "Aspect", "year", "bgc" , "Elevation" ,var_names)
 
 #subset predictor vars
-var_names<-c("TotalA", "Species", "NutrientRegime_clean", "MoistureRegime_clean","Tmax_sm", "TD", "PPT_sm", "DD5_sp")
+#try using suite of climate params from BGC projections (Ceres)
+climrVars <- c("DD5", "DDsub0_at", "DDsub0_wt", "PPT_05", "PPT_06", "PPT_07", "PPT_08",
+               "PPT_09", "CMD", "PPT_at", "PPT_wt", "CMD_07", "SHM", "AHM", "NFFD", "PAS", "CMI")
+
+#derived vars 
+climPredictors <- c("DD5", "DD_delayed", "PPT_MJ", "PPT_JAS", 
+                    "CMD.total", "CMI", "CMDMax", "SHM", "AHM", "NFFD", "PAS")
+
+var_names<-c(c("TotalA", "Species", "NutrientRegime_clean", "MoistureRegime_clean", "Species") , climPredictors)
+#"Tmax_sm", "TD", "PPT_sm", "DD5_sp") 
+
 
 #create dataset with all preds for rf model 
 tree_dat_sub<-select(tree_dat, var_names)
 tree_dat_sub<-na.omit(tree_dat_sub)  #remove NAs
 
-#check for correlation among climate vars
-pairs(tree_dat_sub[,c(7:10)])
+#check for correlation among climate vars- maybe not needed?
+#kiri suggests throw out r>0.9
+#Colin- correlation at entire dataset scale not relevant due to splitting by RF algorithm
+#pairs(tree_dat_sub[,c(5:15)])
+
+cor.test(tree_dat_sub$PPT_05, tree_dat_sub$PPT_06)#correlated ~0.7 remove
+cor.test(tree_dat$DD5_sp, tree_dat$Tmax_sm)#correlated ~0.65 better
+plot(tree_dat$CMI, tree_dat$TD)
+cor.test(tree_dat$NFFD, tree_dat$TD) #r~ 0.45 ok 
 
 plot(tree_dat$DD5, tree_dat$Tmax_sm)
 cor.test(tree_dat$DD5, tree_dat$Tmax_sm)#correlated ~0.7 remove
 cor.test(tree_dat$DD5_sp, tree_dat$Tmax_sm)#correlated ~0.65 better
 plot(tree_dat$CMI, tree_dat$TD)
 cor.test(tree_dat$NFFD, tree_dat$TD) #r~ 0.45 ok 
+
+cor.test(tree_dat_sub$PPT_at, tree_dat_sub$PPT_wt) #0.97 too high
+cor.test(tree_dat_sub$CMI, tree_dat_sub$PPT_wt) #0.98 
+cor.test(tree_dat_sub$CMI, tree_dat_sub$PPT_at) #0.99
+#remove ppt wt & ppt at 
+
+cor.test(tree_dat_sub$CMD, tree_dat_sub$CMD_07) #0.94
+cor.test(tree_dat_sub$PPT_05, tree_dat_sub$PPT_07) #0.8 ok
+cor.test(tree_dat_sub$PPT_06, tree_dat_sub$PPT_07) #0.88 ok
+cor.test(tree_dat_sub$PPT_06, tree_dat_sub$PPT_05) #0.9 
+cor.test(tree_dat_sub$PPT_08, tree_dat_sub$PPT_07) #0.9 
+cor.test(tree_dat_sub$PPT_08, tree_dat_sub$PPT_09) #0.93 
+cor.test(tree_dat_sub$PPT_05, tree_dat_sub$PPT_09) #0.93 
+
+cor.test(tree_dat_sub$DDsub0_at, tree_dat_sub$DDsub0_wt) #0.96 
+
+#11 derived vars-test correlations 
+cor.test(tree_dat_sub$PPT_MJ, tree_dat_sub$PPT_JAS) #0.92 too high?
+cor.test(tree_dat_sub$CMI, tree_dat_sub$PPT_JAS) #0.92
+cor.test(tree_dat_sub$CMD.total, tree_dat_sub$AHM) #0.96
+
 
 #random forest models----
 #run model
@@ -95,7 +133,8 @@ cor.test(test_data$TotalA, preds$predictions)#r=0.52, r2=0.27 (so about the same
 #       3     5  9.64
 #       4     2  2   
 #       5     2  4.67
-
+rm(tree_dat)
+gc()
 tree_dat_sub<-mutate(tree_dat_sub, cover_rank=case_when(TotalA>20~1, 
                                                          TotalA>0 & TotalA<7.5~3,
                                                         TotalA==0 ~0, 
@@ -119,8 +158,8 @@ test_data <- tree_dat_sub[-train_indices, ]
 
 #Fit the ordinal random forest model
 library(ordinalForest)
-RFord <- ordfor(depvar = "cover_rank", mtry=7, data = train_data, ntreefinal = 1000)  
-save(RFord, file="outputs/ordinalForest/RFordmodel5.Rdata")
+RFord <- ordfor(depvar = "cover_rank", mtry=14, data = train_data, ntreefinal = 1000)  
+save(RFord, file="outputs/ordinalForest/RFordmodel7.Rdata")
 
 # Predict on the test set
 preds <- predict(RFord, newdata=test_data)
@@ -129,3 +168,46 @@ preds <- predict(RFord, newdata=test_data)
 conf_mat<-table('true'=test_data$cover_rank, 'predicted'=preds$ypred) 
 accuracy <- sum(diag(conf_mat)) / sum(conf_mat) #acc = 0.88
 
+#plot CM for all data
+conf_mat_df<-as.data.frame(conf_mat)
+ggplot(data=conf_mat_df, aes(y = predicted, x=true, fill=Freq)) + 
+  geom_tile()+ 
+  ylab("Predicted") + xlab("Observed") +
+  theme_bw()+  scale_fill_gradient(low="white", high="darkgreen")
+
+#for non- zeroes- mis predicts 2s as 1s
+conf_mat_df_sub<-subset(conf_mat_df, predicted!=0 & true!=0)
+
+ggplot(data=conf_mat_df_sub, aes(y = predicted, x=true, fill=Freq)) + 
+  geom_tile()+ 
+  ylab("Predicted") + xlab("Observed") +
+  theme_bw()+  scale_fill_gradient(low="white", high="darkgreen")
+
+#look at feature importance 
+importancedf<-as.data.frame(RFord$varimp)
+
+#train model on ALL data 
+RFord <- ordfor(depvar = "cover_rank", mtry=14, data = tree_dat_sub, ntreefinal = 1000)  
+save(RFord, file="outputs/ordinalForest/RFordmodel8.Rdata")
+
+#predict on all data (i.e. fitted values)
+preds <- predict(RFord, newdata=tree_dat_sub)
+
+#confusion matrix 
+conf_mat<-table('true'=tree_dat_sub$cover_rank, 'predicted'=preds$ypred) 
+accuracy <- sum(diag(conf_mat)) / sum(conf_mat) #acc = 0.99
+
+#plot CM for all data
+conf_mat_df<-as.data.frame(conf_mat)
+ggplot(data=conf_mat_df, aes(y = predicted, x=true, fill=Freq)) + 
+  geom_tile()+ 
+  ylab("Predicted") + xlab("Observed") +
+  theme_bw()+  scale_fill_gradient(low="white", high="darkgreen")
+
+#for non- zeroes- mis predicts 2s as 1s
+conf_mat_df_sub<-subset(conf_mat_df, predicted!=0 & true!=0)
+
+ggplot(data=conf_mat_df_sub, aes(y = predicted, x=true, fill=Freq)) + 
+  geom_tile()+ 
+  ylab("Predicted") + xlab("Observed") +
+  theme_bw()+  scale_fill_gradient(low="white", high="darkgreen")
