@@ -54,6 +54,7 @@ rsconnect/
 
 #Too big to push-save locally 
 data/tree_data_cleaned_wzeros.Rdata
+data/clim.bc.RData
 
 #don't need to push 
 data/spatial/
