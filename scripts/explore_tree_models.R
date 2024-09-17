@@ -40,10 +40,13 @@ climPredictors <- c("DD5", "DD_delayed", "PPT_MJ", "PPT_JAS",
 var_names<-c(c("TotalA", "Species", "NutrientRegime_clean", "MoistureRegime_clean", "Species") , climPredictors)
 #"Tmax_sm", "TD", "PPT_sm", "DD5_sp") 
 
-
 #create dataset with all preds for rf model 
 tree_dat_sub<-select(tree_dat, var_names)
 tree_dat_sub<-na.omit(tree_dat_sub)  #remove NAs
+
+#which have nas?
+nas<-anti_join(tree_dat, tree_dat_sub)
+nas<-select(nas, var_names)
 
 #check for correlation among climate vars- maybe not needed?
 #kiri suggests throw out r>0.9
@@ -109,7 +112,6 @@ RFmodel_allspp <- ranger::ranger(
   TotalA~ .,
   data = train_data,
   splitrule = "maxstat",  #recommended for accurate importance feature ranking
-  importance = 'permutation',
   mtry=9, 
   scale.permutation.importance = TRUE)
 
@@ -162,23 +164,22 @@ RFord <- ordfor(depvar = "cover_rank", mtry=14, data = train_data, ntreefinal = 
 save(RFord, file="outputs/ordinalForest/RFordmodel7.Rdata")
 
 # Predict on the test set
-preds <- predict(RFord, newdata=test_data)
+preds5 <- predict(RFord5, newdata=test_data)
 
 #confusion matrix 
 conf_mat<-table('true'=test_data$cover_rank, 'predicted'=preds$ypred) 
-accuracy <- sum(diag(conf_mat)) / sum(conf_mat) #acc = 0.88
+accuracy5 <- sum(diag(conf_mat5)) / sum(conf_mat5) #acc = 0.88
+conf_mat
 
 #plot CM for all data
 conf_mat_df<-as.data.frame(conf_mat)
-ggplot(data=conf_mat_df, aes(y = predicted, x=true, fill=Freq)) + 
+ggplot(data=conf_mat_df5, aes(y = predicted, x=true, fill=Freq)) + 
   geom_tile()+ 
   ylab("Predicted") + xlab("Observed") +
   theme_bw()+  scale_fill_gradient(low="white", high="darkgreen")
 
-#for non- zeroes- mis predicts 2s as 1s
-conf_mat_df_sub<-subset(conf_mat_df, predicted!=0 & true!=0)
-
-ggplot(data=conf_mat_df_sub, aes(y = predicted, x=true, fill=Freq)) + 
+#for non- zeroes- mis predicts 2s as 1s more often than correctly as 2s, predicts 3s as 0 or 2 as much as correctly as 3
+ggplot(data=subset(conf_mat_df5,  predicted!=0 & true!=0), aes(y = predicted, x=true, fill=Freq)) + 
   geom_tile()+ 
   ylab("Predicted") + xlab("Observed") +
   theme_bw()+  scale_fill_gradient(low="white", high="darkgreen")
@@ -186,16 +187,19 @@ ggplot(data=conf_mat_df_sub, aes(y = predicted, x=true, fill=Freq)) +
 #look at feature importance 
 importancedf<-as.data.frame(RFord$varimp)
 
-#train model on ALL data 
+#train model on ALL data -Final model
 RFord <- ordfor(depvar = "cover_rank", mtry=14, data = tree_dat_sub, ntreefinal = 1000)  
 save(RFord, file="outputs/ordinalForest/RFordmodel8.Rdata")
 
 #predict on all data (i.e. fitted values)
 preds <- predict(RFord, newdata=tree_dat_sub)
+fitted<-preds$ypred
+preds$classprobs#what is this?
 
 #confusion matrix 
 conf_mat<-table('true'=tree_dat_sub$cover_rank, 'predicted'=preds$ypred) 
 accuracy <- sum(diag(conf_mat)) / sum(conf_mat) #acc = 0.99
+conf_mat #looks good 328 total incorrect (~0.2%)- mostly 2s being predicted as 1s or 3s
 
 #plot CM for all data
 conf_mat_df<-as.data.frame(conf_mat)
@@ -211,3 +215,9 @@ ggplot(data=conf_mat_df_sub, aes(y = predicted, x=true, fill=Freq)) +
   geom_tile()+ 
   ylab("Predicted") + xlab("Observed") +
   theme_bw()+  scale_fill_gradient(low="white", high="darkgreen")
+
+tree_dat_sub$fitted<-fitted
+
+
+
+

@@ -363,7 +363,6 @@ hist(tree_dat_wzeros$TotalA) #very zero inflated
 save(tree_dat_wzeros, file="data/tree_data_cleaned_wzeros.Rdata") #too big to push- save on OS #13
 
 #bring in feas tables---- 
-#NOT CURRENTLY USING
 feas_tab<-read.csv("data/FeasibilityUpdates.csv")#downloaded from ByBEC 6/3/24
 feas_tab2<-read.csv("data/Feasibility_v12_15.csv")#most recent version from ccisr/data-raw/data_tables/
 
