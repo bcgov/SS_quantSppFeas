@@ -29,19 +29,19 @@ var_names<-vars$Code
 #var_names<-c("TotalA", "Species", "NutrientRegime_clean", "MoistureRegime_clean", "SlopeGradient", "Aspect", "year", "bgc" , "Elevation" ,var_names)
 
 #subset predictor vars
-#try using suite of climate params from BGC projections (Ceres)
+#try using suite of 17 climate params from BGC projections (Ceres)
 climrVars <- c("DD5", "DDsub0_at", "DDsub0_wt", "PPT_05", "PPT_06", "PPT_07", "PPT_08",
                "PPT_09", "CMD", "PPT_at", "PPT_wt", "CMD_07", "SHM", "AHM", "NFFD", "PAS", "CMI")
 
-#derived vars 
+#derived vars (11)
 climPredictors <- c("DD5", "DD_delayed", "PPT_MJ", "PPT_JAS", 
                     "CMD.total", "CMI", "CMDMax", "SHM", "AHM", "NFFD", "PAS")
 
-var_names<-c(c("TotalA", "Species", "NutrientRegime_clean", "MoistureRegime_clean", "Species") , climPredictors)
+var_names<-c(c("TotalA", "Species", "NutrientRegime_clean", "MoistureRegime_clean", "Species") , climrVars)
 #"Tmax_sm", "TD", "PPT_sm", "DD5_sp") 
 
 #create dataset with all preds for rf model 
-tree_dat_sub<-select(tree_dat, var_names)
+tree_dat_sub<-dplyr::select(tree_dat, var_names)
 tree_dat_sub<-na.omit(tree_dat_sub)  #remove NAs
 
 #which have nas?
@@ -187,9 +187,9 @@ ggplot(data=subset(conf_mat_df5,  predicted!=0 & true!=0), aes(y = predicted, x=
 #look at feature importance 
 importancedf<-as.data.frame(RFord$varimp)
 
-#train model on ALL data -Final model
-RFord <- ordfor(depvar = "cover_rank", mtry=14, data = tree_dat_sub, ntreefinal = 1000)  
-save(RFord, file="outputs/ordinalForest/RFordmodel8.Rdata")
+#train model on ALL data 
+RFord <- ordfor(depvar = "cover_rank", mtry=20, data = tree_dat_sub, ntreefinal = 1000)  
+save(RFord, file="outputs/ordinalForest/RFordmodel9.Rdata")
 
 #predict on all data (i.e. fitted values)
 preds <- predict(RFord, newdata=tree_dat_sub)
@@ -217,7 +217,4 @@ ggplot(data=conf_mat_df_sub, aes(y = predicted, x=true, fill=Freq)) +
   theme_bw()+  scale_fill_gradient(low="white", high="darkgreen")
 
 tree_dat_sub$fitted<-fitted
-
-
-
 
