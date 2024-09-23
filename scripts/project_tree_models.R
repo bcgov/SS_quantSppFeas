@@ -17,79 +17,6 @@ library(climr)
 library(sf)
 library(raster)#masks dplyr select!!
 
-#Use PRISM DEM to call in downscaled climr data----
-dir <- paste("//objectstore2.nrs.bcgov/ffec/Climatologies/PRISM_BC/PRISM_dem/", sep="") #must have VPN connected- 800 m DEM
-dem.bc <- rast(paste(dir, "PRISM_dem.asc", sep=""))
-
-## convert the DEM to a data.frame
-my_grid <- as.data.frame(dem.bc, cells = TRUE, xy = TRUE)
-colnames(my_grid) <- c("id", "lon", "lat", "elev") # rename column names to what climr expects
-
-## climr call- This will return the observed 1961-1990 climates for the raster grid points. 
-clim.bcv <- downscale(
-  xyz = my_grid, 
-  out_spatial = TRUE,
-  #obs_periods = "2001_2020", 
-  vars = c("DD5", "DDsub0_at", "DDsub0_wt", "PPT_05", "PPT_06", "PPT_07", "PPT_08",
-               "PPT_09", "CMD", "PPT_at", "PPT_wt", "CMD_07", "SHM", "AHM", "NFFD", "PAS", 
-                "CMI", "Tmax_sm", "TD", "PPT_sm", "DD5_sp"))
-
-saveRDS(clim.bcv, file="data/spatial/clim.bcv.RData")
-#clim.bcv<-readRDS(file="data/spatial/clim.bcv.RData")
-plot(clim.bcv)
-gc()
-
-#rasterize from vector 
-my_rast <- rast(dem.bc) # use the DEM as a template raster
-vars = c("DD5", "DDsub0_at", "DDsub0_wt", "PPT_05", "PPT_06", "PPT_07", "PPT_08",
-         "PPT_09", "CMD", "PPT_at", "PPT_wt", "CMD_07", "SHM", "AHM", "NFFD", "PAS", 
-         "CMI", "Tmax_sm", "TD", "PPT_sm", "DD5_sp")
-clim.bcr<-rasterize(clim.bcv, my_rast, field= vars) #set background=0 for all cells that are NAs 
-saveRDS(clim.bcr, file="data/spatial/clim.bcr.RData")
-#clim.bcr<-readRDS(file="data/spatial/clim.bcr.RData")
-plot(clim.bcr$DD5)#looks good 
-gc()
-
-#aggregate up to 2km resolution
-clim.bcr2k <- aggregate(clim.bcr, fact=3, fun=mean)
-saveRDS(clim.bcr2k, file="data/spatial/clim.bcr2k.RData")
-#clim.bcr2k<-readRDS(file="data/spatial/clim.bcr2k.RData")
-plot(clim.bcr2k$DD5)#looks good - can't really see resolution change
-gc()
-
-#clip to BC boundary
-bcboundary<-bcmaps::bc_bound_hres()
-#st_crs(bcboundary)
-plot(st_geometry(bcboundary))
-bcbound.reproj <- st_transform(bcboundary, st_crs(4326)) #reproject to wgs84  
-clim.bcr2kcrop<-terra::crop(x = clim.bcr2k, y = bcbound.reproj) #crop climr output to BC boundary 
-
-plot(clim.bcr2kcrop$DD5)#looks good- cropped slightly
-gc()
-
-
-#pull back out to df
-clim.bc <- as.data.frame(clim.bcr2kcrop, cells = TRUE, xy = TRUE, na.rm=F)
-clim.bc<-rename(clim.bc, id=cell, lon=x, lat=y)
-
-#where are the NAs?
-#clim.bc <- as.data.frame(clim.bcr2kcrop, cells = TRUE, xy = TRUE)
-#clim.bcwna <- as.data.frame(clim.bcr2kcrop, cells = TRUE, xy = TRUE, na.rm=F)
-#climnas<-anti_join(clim.bcwna, clim.bc) #129284 NAs 
-#climnas<-rename(climnas, id=cell, lon=x, lat=y)%>%dplyr::select(id, lat, lon)
-#plot(clim.bcr2kcrop$DD5)
-#points(x = climnas$lon, 
-#        y = climnas$lat, 
-#        col = "red", 
-#        cex = 0.5)
-#write.csv(climnas, 'data/gpsnas.csv')
-
-#additional vars needed -"DD_delayed", "PPT_MJ", "PPT_JAS", "CMD.total", "CMDMax"----
-clim.bc<-as.data.table(clim.bc) #requires data table 
-source("scripts/addVars.R") 
-addVars(clim.bc) #why not showing additional variables in environment??
-save(clim.bc, file="data/clim.bc2k.RData")
-
 #predict over full climate surface with trained OF model(s)----
 #load climate all BC (from PRISM DEM) 
 #load(file="data/clim.bc.RData") #800m 
@@ -97,21 +24,29 @@ load(file="data/clim.bc2k.RData") #2km
 #fill all NAs with zero b/c predict function requires 
 clim.bc[is.na(clim.bc)] <- 0
 
-#load trained models 
-load(file="outputs/ordinalForest/RFordmodel5.Rdata")
+#load trained models for comparison 
+load(file="outputs/ordinalForest/RFordmodel5.Rdata")#trained on 70-30 split
 RFord5<-RFord
-load(file="outputs/ordinalForest/RFordmodel6.Rdata")
+load(file="outputs/ordinalForest/RFordmodel6.Rdata")#trained on 70-30 split
 RFord6<-RFord
-load(file="outputs/ordinalForest/RFordmodel7.Rdata")
+load(file="outputs/ordinalForest/RFordmodel7.Rdata")#trained on 70-30 split
 RFord7<-RFord
+rm(RFord)
+load(file="outputs/ordinalForest/RFordmodel8.Rdata")#mod 7 trained on all data 
+RFord8<-RFord
+rm(RFord)
+load(file="outputs/ordinalForest/RFordmodel9.Rdata")#mod 6 trained on all data
+RFord9<-RFord
 rm(RFord)
 
 #add edaphic info - start with Zonal for all 
 clim.bc$NutrientRegime_clean<-"C" #zonal  
 clim.bc$MoistureRegime_clean<-"4" #zonal  
 
-#add species - start with Hw
+#add species - start with Hw, Cw, Fd to start
 clim.bc$Species<-"TSUGHET"
+clim.bc$Species<-"THUJPLI"
+clim.bc$Species<-"PSEUMEN"
 
 #subset to correct climate params 
 clim5<-c("Tmax_sm", "TD", "PPT_sm", "DD5_sp", "NutrientRegime_clean", "MoistureRegime_clean", "Species")
@@ -122,7 +57,12 @@ clim6<-dplyr::select(clim.bc, clim6)
 clim7<-c("DD5", "DD_delayed", "PPT_MJ", "PPT_JAS", 
         "CMD.total", "CMI", "CMDMax", "SHM", "AHM", "NFFD", "PAS", "NutrientRegime_clean", "MoistureRegime_clean", "Species")
 clim7<-dplyr::select(clim.bc, clim7)  
-gc()
+clim8<-c("DD5", "DD_delayed", "PPT_MJ", "PPT_JAS", 
+         "CMD.total", "CMI", "CMDMax", "SHM", "AHM", "NFFD", "PAS", "NutrientRegime_clean", "MoistureRegime_clean", "Species")
+clim8<-dplyr::select(clim.bc, clim8) #same params as clim7  
+clim9<-c("DD5", "DDsub0_at", "DDsub0_wt", "PPT_05", "PPT_06", "PPT_07", "PPT_08",
+   "PPT_09", "CMD", "PPT_at", "PPT_wt", "CMD_07", "SHM", "AHM", "NFFD", "PAS", "CMI", "NutrientRegime_clean", "MoistureRegime_clean", "Species")
+clim9<-dplyr::select(clim.bc, clim9) #same params as clim6  
 
 #make predictions for all BC 
 library(ordinalForest)
@@ -132,6 +72,22 @@ predsm6c4Hw <-predict(object = RFord6, newdata = clim6)
 save(predsm6c4Hw, file="outputs/ordinalForest/preds/predsm6c4Hw.RData")
 predsm7c4Hw <-predict(object = RFord7, newdata = clim7)
 save(predsm7c4Hw, file="outputs/ordinalForest/preds/predsm7c4Hw.RData")
+predsm8c4Hw <-predict(object = RFord8, newdata = clim8)
+save(predsm8c4Hw, file="outputs/ordinalForest/preds/predsm8c4Hw.RData")
+predsm8c4Hw <-predict(object = RFord8, newdata = clim8)
+save(predsm8c4Hw, file="outputs/ordinalForest/preds/predsm8c4Hw.RData")
+predsm9c4Hw <-predict(object = RFord9, newdata = clim9)
+save(predsm9c4Hw, file="outputs/ordinalForest/preds/predsm9c4Hw.RData")
+
+predsm8c4Cw <-predict(object = RFord8, newdata = clim8)
+save(predsm8c4Cw, file="outputs/ordinalForest/preds/predsm8c4Cw.RData")
+predsm9c4Cw <-predict(object = RFord9, newdata = clim9)
+save(predsm9c4Cw, file="outputs/ordinalForest/preds/predsm9c4Cw.RData")
+
+predsm8c4Fd <-predict(object = RFord8, newdata = clim8)
+save(predsm8c4Fd, file="outputs/ordinalForest/preds/predsm8c4Fd.RData")
+predsm9c4Fd <-predict(object = RFord9, newdata = clim9)
+save(predsm9c4Fd, file="outputs/ordinalForest/preds/predsm9c4Fd.RData")
 
 #make into df
 predsm5c4Hw<-as.data.frame(predsm5c4Hw$ypred) 
@@ -146,45 +102,263 @@ predsm7c4Hw<-as.data.frame(predsm7c4Hw$ypred)
 predsm7c4Hw$id<-as.numeric(as.character(row.names(predsm7c4Hw)))
 colnames(predsm7c4Hw)<- c("ypred", "id")
 
+predsm8c4Fd<-as.data.frame(predsm8c4Fd$ypred) 
+predsm8c4Fd$id<-as.numeric(as.character(row.names(predsm8c4Fd)))
+colnames(predsm8c4Fd)<- c("ypred", "id")
+
+predsm9c4Fd<-as.data.frame(predsm9c4Fd$ypred) 
+predsm9c4Fd$id<-as.numeric(as.character(row.names(predsm9c4Fd)))
+colnames(predsm9c4Fd)<- c("ypred", "id")
+
 ##add lat, long back in
 predsm5c4Hw<-left_join(predsm5c4Hw, dplyr::select(clim.bc, id, lat, lon))
 predsm6c4Hw<-left_join(predsm6c4Hw, dplyr::select(clim.bc, id, lat, lon))
 predsm7c4Hw<-left_join(predsm7c4Hw, dplyr::select(clim.bc, id, lat, lon))
-
-climnas<-read.csv("data/gpsnas.csv")
-predsm5c4Hw<-filter(predsm5c4Hw, !id %in% climnas$id) # remove cells in ocean 
-predsm6c4Hw<-filter(predsm6c4Hw, !id %in% climnas$id) # remove cells in ocean 
-predsm7c4Hw<-filter(predsm7c4Hw, !id %in% climnas$id) # remove cells in ocean 
+predsm8c4Fd<-left_join(predsm8c4Fd, dplyr::select(clim.bc, id, lat, lon))
+predsm9c4Fd<-left_join(predsm9c4Fd, dplyr::select(clim.bc, id, lat, lon))
+#rename for raster creation 
+predsm5c4Hw<-dplyr::select(predsm5c4Hw, lon, lat, ypred)%>%rename(x=lon, y=lat)
+predsm6c4Hw<-dplyr::select(predsm6c4Hw, lon, lat, ypred)%>%rename(x=lon, y=lat)
+predsm7c4Hw<-dplyr::select(predsm7c4Hw, lon, lat, ypred)%>%rename(x=lon, y=lat)
+predsm8c4Fd<-dplyr::select(predsm8c4Fd, lon, lat, ypred)%>%rename(x=lon, y=lat)
+predsm9c4Fd<-dplyr::select(predsm9c4Fd, lon, lat, ypred)%>%rename(x=lon, y=lat)
 
 
 #plot predictions----
 #BEC plot locations
 load(file="data/tree_data_cleaned.Rdata")
 Hw<-subset(tree_dat, Species=='TSUGHET') 
+Hw<-mutate(Hw, cover_rank=case_when(TotalA>20~1, TotalA>0 & TotalA<7.5~3,
+                                                         TRUE~2))
+Hw1<-subset(Hw, cover_rank=="1")
 
-library(tidyterra)
-#NOT WORKING
-ggplot() +
-  geom_spatraster(data = clim.bcr2kcrop, aes(fill = Tmax_sm))+
-  scale_fill_whitebox_c(
-    palette = "muted",
-    na.value = "white") + 
-    geom_point(data=predsm5c4Hw, aes(x=lon, y=lat, fill=ypred))
+Cw<-subset(tree_dat, Species=='THUJPLI') 
+Cw<-mutate(Cw, cover_rank=case_when(TotalA>20~1, TotalA>0 & TotalA<7.5~3,
+                                    TRUE~2))
+Cw1<-subset(Cw, cover_rank=="1")
 
-#base R
-plot(clim.bcr2kcrop$DD5, legend=F, main = "Mod5 Hw c4 2km predited feasibility") #cropped raster
-#overlay pred values
-points(x = predsm5c4Hw$lon, predsm5c4Hw$lat,
+Fd<-subset(tree_dat, Species=='PSEUMEN') 
+Fd<-mutate(Fd, cover_rank=case_when(TotalA>20~1, TotalA>0 & TotalA<7.5~3,
+                                    TRUE~2))
+Fd1<-subset(Fd, cover_rank=="1")
+
+#load BC boundary for masking 
+bcboundary<-bcmaps::bc_bound_hres()
+bcbound.reproj <- st_transform(bcboundary, st_crs(4326)) #reproject to wgs84 
+
+#turn preds into raster & plot-m5---- 
+predsm5c4Hwr<-rasterFromXYZ(predsm5c4Hw)
+predsm5c4Hwr<-mask(predsm5c4Hwr, bcbound.reproj)#mask areas not in BC boundary 
+predsm5c4Hwr$ypred <- as.factor(predsm5c4Hwr$ypred) #not working??
+plot(predsm5c4Hwr)#still coded backward - but can interpret that green = primary 
+plot(predsm5c4Hwr,main="Mod5 Hw c4 2km predicted feasibility", legend=F)#turn off auto legend  
+points(x = Hw1$Longitude, Hw1$Latitude, #add BEC plots where Hw is primary (area> 20%)
+       col="lightgrey",
+       cex = 0.1)
+legend("topright",   
+       legend =  c("1","2", "3", "BEC plot"), 
+       # the legend
+       fill =  c("green4","greenyellow", "orange1", "lightgrey"), 
+       bty="n",cex=0.8, 
+       inset=c(0.025, 0.1))
+
+
+#turn preds into raster & plot-m6----
+predsm6c4Hwr<-rasterFromXYZ(predsm6c4Hw)
+predsm6c4Hwr<-mask(predsm6c4Hwr, bcbound.reproj)#mask areas not in BC boundary 
+predsm6c4Hwr$ypred <- as.factor(predsm6c4Hwr$ypred) #not working??
+plot(predsm6c4Hwr)#still coded backward - but can interpret that green = primary 
+plot(predsm6c4Hwr,main="Mod6 Hw c4 2km predicted feasibility", legend=F)#turn off auto legend  
+points(x = Hw1$Longitude, Hw1$Latitude, #add BEC plots where Hw is primary (area> 20%)
+       col="lightgrey",
+       cex = 0.1)
+legend("topright",   
+       legend =  c("1","2", "3", "BEC plot"), 
+       # the legend
+       fill =  c("green4","greenyellow", "orange1", "lightgrey"), 
+       bty="n",cex=0.8, 
+       inset=c(0.025, 0.1))
+
+#turn preds into raster & plot-m7----
+predsm7c4Hwr<-rasterFromXYZ(predsm7c4Hw)
+predsm7c4Hwr<-mask(predsm7c4Hwr, bcbound.reproj)#mask areas not in BC boundary 
+predsm7c4Hwr$ypred <- as.factor(predsm7c4Hwr$ypred) #not working??
+plot(predsm7c4Hwr)#still coded backward - but can interpret that green = primary 
+
+plot(predsm7c4Hwr,main="Mod7 Hw c4 2km predicted feasibility", legend=F)#turn off auto legend  
+points(x = Hw1$Longitude, Hw1$Latitude, #add BEC plots where Hw is primary (area> 20%)
+       col="lightgrey",
+       cex = 0.1)
+legend("topright",   
+       legend =  c("1","2", "3", "BEC plot"), 
+       # the legend
+       fill =  c("green4","greenyellow", "orange1", "lightgrey"), 
+       bty="n",cex=0.8, 
+       inset=c(0.025, 0.1))
+
+
+#turn preds into raster & plot-m8----
+#Hw
+predsm8c4Hwr<-rasterFromXYZ(predsm8c4Hw)
+predsm8c4Hwr<-mask(predsm8c4Hwr, bcbound.reproj)#mask areas not in BC boundary 
+predsm8c4Hwr$ypred <- as.factor(predsm8c4Hwr$ypred) #not working??
+plot(predsm8c4Hwr)#still coded backward - but can interpret that green = primary 
+
+plot(predsm8c4Hwr,main="Mod8 Hw c4 2km predicted feasibility", legend=F)#turn off auto legend  
+points(x = Hw1$Longitude, Hw1$Latitude, #add BEC plots where Hw is primary (area> 20%)
+       col="lightgrey",
+       cex = 0.1)
+legend("topright",   
+       legend =  c("1","2", "3", "BEC plot"), 
+       # the legend
+       fill =  c("green4","greenyellow", "orange1", "lightgrey"), 
+       bty="n",cex=0.8, 
+       inset=c(0.025, 0.1))
+#Cw
+predsm8c4Cwr<-rasterFromXYZ(predsm8c4Cw)
+predsm8c4Cwr<-mask(predsm8c4Cwr, bcbound.reproj)#mask areas not in BC boundary 
+predsm8c4Cwr$ypred <- as.factor(predsm8c4Cwr$ypred) #not working??
+plot(predsm8c4Cwr)#still coded backward - but can interpret that green = primary 
+
+plot(predsm8c4Cwr,main="Mod8 Cw c4 2km predicted feasibility", legend=F)#turn off auto legend  
+points(x = Cw1$Longitude, Cw1$Latitude, #add BEC plots where Cw is primary (area> 20%)
+       col="lightgrey",
+       cex = 0.1)
+legend("topright",   
+       legend =  c("1","2", "3", "BEC plot"), 
+       # the legend
+       fill =  c("green4","greenyellow", "orange1", "lightgrey"), 
+       bty="n",cex=0.8, 
+       inset=c(0.025, 0.1))
+
+#Fd
+predsm8c4Fdr<-rasterFromXYZ(predsm8c4Fd)
+predsm8c4Fdr<-mask(predsm8c4Fdr, bcbound.reproj)#mask areas not in BC boundary 
+predsm8c4Fdr$ypred <- as.factor(predsm8c4Fdr$ypred) #not working??
+plot(predsm8c4Fdr)#still coded backward - but can interpret that green = primary 
+
+plot(predsm8c4Fdr,main="Mod8 Fd c4 2km predicted feasibility", legend=F)#turn off auto legend  
+points(x = Fd1$Longitude, Fd1$Latitude, #add BEC plots where Fd is primary (area> 20%)
+       col="lightgrey",
+       cex = 0.1)
+legend("topright",   
+       legend =  c("1","2", "3", "BEC plot"), 
+       # the legend
+       fill =  c("green4","greenyellow", "orange1", "lightgrey"), 
+       bty="n",cex=0.8, 
+       inset=c(0.025, 0.1))
+#turn preds into raster & plot-m9----
+#HW
+predsm9c4Hwr<-rasterFromXYZ(predsm9c4Hw)
+predsm9c4Hwr<-mask(predsm9c4Hwr, bcbound.reproj)#mask areas not in BC boundary 
+predsm9c4Hwr$ypred <- as.factor(predsm9c4Hwr$ypred) #not working??
+plot(predsm9c4Hwr)#still coded backward - but can interpret that green = primary 
+
+plot(predsm9c4Hwr,main="Mod9 Hw c4 2km predicted feasibility", legend=F)#turn off auto legend  
+points(x = Hw1$Longitude, Hw1$Latitude, #add BEC plots where Hw is primary (area> 20%)
+       col="lightgrey",
+       cex = 0.1)
+legend("topright",   
+       legend =  c("1","2", "3", "BEC plot"), 
+       # the legend
+       fill =  c("green4","greenyellow", "orange1", "lightgrey"), 
+       bty="n",cex=0.8, 
+       inset=c(0.025, 0.1))
+
+#Cw
+predsm9c4Cwr<-rasterFromXYZ(predsm9c4Cw)
+predsm9c4Cwr<-mask(predsm9c4Cwr, bcbound.reproj)#mask areas not in BC boundary 
+predsm9c4Cwr$ypred <- as.factor(predsm9c4Cwr$ypred) #not working??
+plot(predsm9c4Cwr)#still coded backward - but can interpret that green = primary 
+
+plot(predsm9c4Cwr,main="Mod9 Cw c4 2km predicted feasibility", legend=F)#turn off auto legend  
+points(x = Cw1$Longitude, Cw1$Latitude, #add BEC plots where Cw is primary (area> 20%)
+       col="lightgrey",
+       cex = 0.1)
+legend("topright",   
+       legend =  c("1","2", "3", "BEC plot"), 
+       # the legend
+       fill =  c("green4","greenyellow", "orange1", "lightgrey"), 
+       bty="n",cex=0.8, 
+       inset=c(0.025, 0.1))
+#Fd
+predsm9c4Fdr<-rasterFromXYZ(predsm9c4Fd)
+predsm9c4Fdr<-mask(predsm9c4Fdr, bcbound.reproj)#mask areas not in BC boundary 
+predsm9c4Fdr$ypred <- as.factor(predsm9c4Fdr$ypred) #not working??
+plot(predsm9c4Fdr)#still coded backward - but can interpret that green = primary 
+
+plot(predsm9c4Fdr,main="Mod9 Fd c4 2km predicted feasibility", legend=F)#turn off auto legend  
+points(x = Fd1$Longitude, Fd1$Latitude, #add BEC plots where Fd is primary (area> 20%)
+       col="lightgrey",
+       cex = 0.1)
+legend("topright",   
+       legend =  c("1","2", "3", "BEC plot"), 
+       # the legend
+       fill =  c("green4","greenyellow", "orange1", "lightgrey"), 
+       bty="n",cex=0.8, 
+       inset=c(0.025, 0.1))
+
+
+
+
+
+
+
+
+#try with tidy terra? 
+predsm5c4Hwr<-rast(predsm5c4Hwr)
+ggplot() + 
+  geom_spatraster(predsm5c4Hwr, aes(fill = ypred))#not working
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+       
+check<-predsm5c4Hwr$ypred
+
+clim.bcr2kmask<-mask(clim.bcr2kcrop, bcbound.reproj)
+plot(clim.bcr2kmask$DD5, legend=F, main = "Mod5 Hw c4 2km predicted feasibility") #cropped & masked raster
+tempr<-raster(clim.bcr2kmask)
+
+str(predsm5c4Hw)
+
+predsm5c4Hwr<-stack(predsm5c4Hwr)
+
+plot(predsm5c4Hwr, main = "Mod5 Hw c4 2km predicted feasibility") #cropped & masked raster
+plot(predsm5c4Hwr)
+
+#Model pred values
+
+points(x = predsm5c4Hw$x, predsm5c4Hw$y,
        col=c("lightgrey","blue", "yellow", "green")[predsm5c4Hw$ypred],
+       pch=19,
        cex = 0.8)
-#plot BEC plots
+
+#BEC plots with rank cover 
+Hw1<-subset(Hw, cover_rank=="1")
 points(x = Hw$Longitude, Hw$Latitude,
-       col='grey', pch=4,
-       cex = 0.3)
+       col=c("blue", "yellow", "green")[Hw$cover_rank],
+       pch=15,
+       cex = 0.8)
 legend("topright",   
        legend = levels(predsm5c4Hw$ypred), 
        # the legend
-       fill =  c("lightgrey","blue", "yellow", "green"), 
+       fill =  c("forestgreen","lightgreen", "yellow", "green"), 
        bty="n",cex=0.8, 
        inset=c(0.025, 0.1))
        
@@ -334,6 +508,32 @@ clim.bcx<-group_by(clim.bc, latlr, lonlr, elev)%>%
 "PPT_09", "CMD", "PPT_at", "PPT_wt", "CMD_07", "SHM", "AHM", "NFFD", "PAS", 
 "CMI", "Tmax_sm", "TD", "PPT_sm", "DD5_sp"))
 gc()
+
+
+
+
+
+
+
+
+
+
+#Predict for ALL species 
+load(file="data/clim.bc2k.RData") #2km
+#fill all NAs with zero b/c predict function requires 
+clim.bc[is.na(clim.bc)] <- 0
+#select climate params from best model 
+clim9<-c("DD5", "DDsub0_at", "DDsub0_wt", "PPT_05", "PPT_06", "PPT_07", "PPT_08",
+         "PPT_09", "CMD", "PPT_at", "PPT_wt", "CMD_07", "SHM", "AHM", "NFFD", "PAS", "CMI", "NutrientRegime_clean", "MoistureRegime_clean", "Species")
+clim9<-dplyr::select(clim.bc, clim9) 
+#create dataframe with all spp
+climspp<-expand.grid(clim9, Species=unique(tree_dat$Species))
+#loop model over each spp dataset 
+sppcodes <- sort(unique(ckun$geo))
+for (k in codes) {
+  name<-paste("data", k, sep="_")
+  assign(name, subset(Data, (Data$geo==k)))
+}
 
 
 
