@@ -14,7 +14,7 @@ library(tidyverse)
 
 #pull in climate data ----
 cache_clear()
-source("scripts/climr_getdata.R") #ignore warnings
+source("scripts/climr_getdata_plots.R") #ignore warnings
 
 #merge with veg data---- 
 veg_dat<-BEC_data$veg
