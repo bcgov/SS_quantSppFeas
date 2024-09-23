@@ -75,25 +75,3 @@ ggplot(plot_dat, aes(x=Elevation, y=PPT))+
 #precip more interesting - is this picking up snow??
 
 
-#rasterize----
-#using example from vignette https://bcgov.github.io/climr/articles/climr_workflow_beg.html#working-with-raster-data
-## get the sample digital elevation model (dem) provided with `climr`
-#dem_vancouver <- get(data("dem_vancouver")) |> 
-#  unwrap()
-
-## convert the DEM to a data.frame
-#my_grid <- as.data.frame(dem_vancouver, cells = TRUE, xy = TRUE)
-#colnames(my_grid) <- c("id", "lon", "lat", "elev") # rename column names to what climr expects
-
-## A simple climr query. This will return the observed 1961-1990 and 2001-2020 mean annual temperature (MAT) for the raster grid points. 
-#ds_out <- climr_downscale(
-#  xyz = my_grid, 
-#  historic_period = "2001_2020", 
-#  vars = c("MAT")
-#)
-
-## populate the raster grid with the downscaled climate values
-#my_clim <- rast(dem_vancouver) # use the DEM as a template raster
-#my_clim[ds_out[PERIOD == "2001_2020", id]] <- ds_out[PERIOD == "2001_2020", MAT] # populate the raster cells with the 2001-2020 mean annual temperature (MAT) values, using the `id` field as the link. 
-
-#plot(my_clim, main = "2001-2020 mean annual temperature (MAT)")
