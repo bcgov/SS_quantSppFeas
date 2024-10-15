@@ -21,10 +21,9 @@ library(raster)#masks dplyr select!!
 #load climate all BC (from PRISM DEM) 
 #load(file="data/clim.bc.RData") #800m 
 load(file="data/clim.bc2k.RData") #2km
-#fill all NAs with zero b/c predict function requires 
+#fill all NAs (IN THE OCEAN) with zero b/c predict function requires 
 clim.bc[is.na(clim.bc)] <- 0
 
-#create functions to streamline this!!! ####
 
 #load trained models for comparison---- 
 load(file="outputs/ordinalForest/RFordmodel5.Rdata")#trained on 70-30 split
