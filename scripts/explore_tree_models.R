@@ -37,7 +37,7 @@ climrVars <- c("DD5", "DDsub0_at", "DDsub0_wt", "PPT_05", "PPT_06", "PPT_07", "P
 climPredictors <- c("DD5", "DD_delayed", "PPT_MJ", "PPT_JAS", 
                     "CMD.total", "CMI", "CMDMax", "SHM", "AHM", "NFFD", "PAS")
 
-var_names<-c(c("TotalA", "Species", "NutrientRegime_clean", "MoistureRegime_clean", "Species") , climrVars)
+var_names<-c(c("TotalA", "Species", "NutrientRegime_clean", "MoistureRegime_clean", "Species") , climPredictors)
 #"Tmax_sm", "TD", "PPT_sm", "DD5_sp") 
 
 #create dataset with all preds for rf model 
@@ -138,9 +138,9 @@ cor.test(test_data$TotalA, preds$predictions)#r=0.52, r2=0.27 (so about the same
 rm(tree_dat)
 gc()
 tree_dat_sub<-mutate(tree_dat_sub, cover_rank=case_when(TotalA>20~1, 
-                                                         TotalA>0 & TotalA<7.5~3,
+                                                        TotalA>0 & TotalA<7.5~3,
                                                         TotalA==0 ~0, 
-                                                         TRUE~2))
+                                                        TRUE~2))
 hist(tree_dat_sub$cover_rank)
 
 group_by(tree_dat_sub, cover_rank)%>%summarise(counts=n())#about even for 1, 2,3
@@ -152,13 +152,23 @@ str(tree_dat_sub$cover_rank)#good
 #remove continuous response
 tree_dat_sub$TotalA<-NULL
 
+#remove NAs in moisture/nutrient regimes 
+tree_dat_sub<- subset(tree_dat_sub, NutrientRegime_clean!="NA"& MoistureRegime_clean!="NA")
+
+save(tree_dat_sub,file="data/ordforest_data.Rdata")#17 climate vars
+save(tree_dat_sub,file="data/ordforest_data2.Rdata")#11 derived climate vars 
+
 # Split the dataset into training and testing sets
 set.seed(123) 
 train_indices <- sample(1:nrow(tree_dat_sub), 0.7 * nrow(tree_dat_sub)) # 70% of the data for training
 train_data <- tree_dat_sub[train_indices, ]
 test_data <- tree_dat_sub[-train_indices, ]
 
-#Fit the ordinal random forest model
+#Fit the ordinal random forest model----
+#load datasets
+load(file="data/ordforest_data.Rdata")#17 climate vars
+load(file="data/ordforest_data2.Rdata")#11 derived climate vars 
+
 library(ordinalForest)
 RFord <- ordfor(depvar = "cover_rank", mtry=14, data = train_data, ntreefinal = 1000)  
 save(RFord, file="outputs/ordinalForest/RFordmodel7.Rdata")
@@ -178,7 +188,6 @@ ggplot(data=conf_mat_df5, aes(y = predicted, x=true, fill=Freq)) +
   ylab("Predicted") + xlab("Observed") +
   theme_bw()+  scale_fill_gradient(low="white", high="darkgreen")
 
-#for non- zeroes- mis predicts 2s as 1s more often than correctly as 2s, predicts 3s as 0 or 2 as much as correctly as 3
 ggplot(data=subset(conf_mat_df5,  predicted!=0 & true!=0), aes(y = predicted, x=true, fill=Freq)) + 
   geom_tile()+ 
   ylab("Predicted") + xlab("Observed") +
@@ -194,7 +203,7 @@ save(RFord, file="outputs/ordinalForest/RFordmodel9.Rdata")
 #predict on all data (i.e. fitted values)
 preds <- predict(RFord, newdata=tree_dat_sub)
 fitted<-preds$ypred
-preds$classprobs#what is this?
+#preds$classprobs#what is this?
 
 #confusion matrix 
 conf_mat<-table('true'=tree_dat_sub$cover_rank, 'predicted'=preds$ypred) 
@@ -216,5 +225,56 @@ ggplot(data=conf_mat_df_sub, aes(y = predicted, x=true, fill=Freq)) +
   ylab("Predicted") + xlab("Observed") +
   theme_bw()+  scale_fill_gradient(low="white", high="darkgreen")
 
-tree_dat_sub$fitted<-fitted
+
+#try fitting ordinal forest for one species & zonal (Hw)
+tree_dat_sub_Hwzonal<-subset(tree_dat_sub, Species=="TSUGHET"& NutrientRegime_clean=="C")%>%subset(MoistureRegime_clean=="4"|MoistureRegime_clean=="3")
+#tree_dat_sub_Hwzonal<-dplyr::select(tree_dat_sub_Hwzonal, -Species, -NutrientRegime_clean, -MoistureRegime_clean) #remove categorical vars
+
+RFord <- ordfor(depvar = "cover_rank", mtry=14, data = tree_dat_sub_Hwzonal, ntreefinal = 1000)  
+save(RFord, file="outputs/ordinalForest/RFordmodelHwZonal.Rdata")
+
+#predict on i.e. fitted values
+preds <- predict(RFord, newdata=tree_dat_sub_Hwzonal)
+fitted<-preds$ypred
+#confusion matrix 
+conf_mat<-table('true'=tree_dat_sub_Hwzonal$cover_rank, 'predicted'=preds$ypred) 
+accuracy <- sum(diag(conf_mat)) / sum(conf_mat) #acc = 0.997
+conf_mat 
+
+#plot CM for all data
+conf_mat_df<-as.data.frame(conf_mat)
+ggplot(data=conf_mat_df, aes(y = predicted, x=true, fill=Freq)) + 
+  geom_tile()+ 
+  ylab("Predicted") + xlab("Observed") +
+  theme_bw()+  scale_fill_gradient(low="white", high="darkgreen")
+
+#for non- zeroes- mis predicts 2s as 1s
+conf_mat_df_sub<-subset(conf_mat_df, predicted!=0 & true!=0)
+
+ggplot(data=conf_mat_df_sub, aes(y = predicted, x=true, fill=Freq)) + 
+  geom_tile()+ 
+  ylab("Predicted") + xlab("Observed") +
+  theme_bw()+  scale_fill_gradient(low="white", high="darkgreen")
+
+#try fitting ordinal forest for one spp (all edatopes)
+tree_dat_sub_Hw<-subset(tree_dat_sub, Species=="TSUGHET")
+tree_dat_sub_Hw$Species<-NULL
+RFordHw2 <- ordfor(depvar = "cover_rank", mtry=13, data = tree_dat_sub_Hw, ntreefinal = 1000)  
+save(RFordHw2, file="outputs/ordinalForest/RFordmodelHw2.Rdata")
+
+preds <- predict(RFordHw2, newdata=tree_dat_sub_Hw)
+predszonal <- predict(RFordHw2, newdata=tree_dat_sub_Hwzonal)
+
+#confusion matrix 
+conf_mat<-table('true'=tree_dat_sub_Hw$cover_rank, 'predicted'=preds$ypred) 
+accuracy <- sum(diag(conf_mat)) / sum(conf_mat) #acc = 0.997
+
+#now try predicting just one edatope
+tree_dat_sub_Hwzonal<-subset(tree_dat_sub_Hw, NutrientRegime_clean=="C")%>%subset(MoistureRegime_clean=="4"|MoistureRegime_clean=="3")
+preds <- predict(RFordHw2, newdata=tree_dat_sub_Hwzonal)
+#confusion matrix 
+conf_mat<-table('true'=tree_dat_sub_Hwzonal$cover_rank, 'predicted'=predszonal$ypred) 
+accuracy <- sum(diag(conf_mat)) / sum(conf_mat) #acc = 0.71
+conf_mat
+
 
