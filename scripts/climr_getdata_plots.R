@@ -39,9 +39,9 @@ var_names<-vars$Code
 
 ## climr query for the historic data - only using 1961-1990 for now 
 ## what is the resolution/scale of these data? PRISM 800m downscaled to plot-level (accuracy of GPS points and elevation- double checks elev vals make bigger difference)
-
+cache_clear()
 clim_dat <- downscale(
-  xyz = my_points, which_refmap = "auto", 
+  xyz = my_points, which_refmap = "refmap_climr", 
   #historic_period = "2001_2020", 
   #historic_ts = C(1961:1990),
   #gcm_models = c("GFDL-ESM4", "EC-Earth3"), # specify two global climate models
