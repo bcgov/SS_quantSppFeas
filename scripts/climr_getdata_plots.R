@@ -26,7 +26,7 @@ plot_dat<-BEC_data$env #70,547 plots
 my_points <- select(plot_dat, Longitude, Latitude, Elevation, PlotNumber, ProjectID) %>%
   rename(lon = Longitude,   lat = Latitude, 
   elev = Elevation, id = PlotNumber)%>%
-  na.omit() #remove NAs
+  na.omit() #remove NAs- 59,345 plots with GPS locations 
 
 #look at options 
 #what to select here?
@@ -56,8 +56,24 @@ clim_dat <- downscale(
 source("scripts/addVars.R")
 addVars(clim_dat)
 
+#check for NAs in climate data - where are they? 
+clim_dat2<-na.omit(clim_dat) 
+nas<-anti_join(clim_dat,clim_dat2) #31
+locs<-select(plot_dat, PlotNumber, Latitude, Longitude)
+nas$PlotNumber<-nas$id
+nas<-left_join(nas, locs) %>%select(Latitude, Longitude, CMD, AHM,  PlotNumber)
+
+#plot NAs
+#bcboundary<-bcmaps::bc_bound_hres()
+#bcbound.reproj <-sf::st_transform(bcboundary, sf::st_crs(4326))
+#plot(sf::st_geometry(bcbound.reproj))
+#points(x = nas$Longitude, nas$Latitude, #add BEC plots where Hw is primary (area> 20%)
+#       col="red") #ok somewhat random locations so can delete 
+ 
+clim_dat<-na.omit(clim_dat) #remove NAs 
+
 #merge back with plot data 
-plot_dat<-left_join(plot_dat, rename(clim_dat, PlotNumber=id))
+plot_dat<-left_join(plot_dat, rename(clim_dat, PlotNumber=id))%>%subset(PlotNumber %in% clim_dat$id)
 
 save(clim_dat, plot_dat, file= 'data/clim_dat.plots.Rdata')
 
