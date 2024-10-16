@@ -56,10 +56,13 @@ clim_dat <- downscale(
 source("scripts/addVars.R")
 addVars(clim_dat)
 
-#sanity check
 #merge back with plot data 
 plot_dat<-left_join(plot_dat, rename(clim_dat, PlotNumber=id))
 
+save(clim_dat, plot_dat, file= 'data/clim_dat.plots.Rdata')
+
+
+#sanity check
 ggplot(plot_dat, aes(x=Elevation, y=MAT))+
   geom_point()+
   geom_smooth(method='lm')+
