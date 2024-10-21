@@ -13,7 +13,7 @@
 library(tidyverse)
 library(terra)
 library(data.table)
-library(climr)
+#library(climr)
 library(sf)
 library(raster)#masks dplyr select!!
 library(ranger)
@@ -21,20 +21,20 @@ library(ranger)
 
 #load trained mods----
 #set path to spp model outputs 
-folder_path <- "outputs/ranger/RFregression_classes/TSUGHET"  
+folder_path <- "outputs/ranger/RFregression_classes/PSEUMEN"  
 # List all RData files in the folder
-Hwmods <- list.files(path = folder_path, pattern = "\\.RData$", full.names = TRUE)
+Fdmods <- list.files(path = folder_path, pattern = "\\.RData$", full.names = TRUE)
 
 # Load  & rename all mod files
-for (i in seq_along(Hwmods)) {
+for (i in seq_along(Fdmods)) {
   # Create a temporary environment to load the model
   temp_env <- new.env()
   
   # Load the model into the temporary environment
-  load(Hwmods[i], envir = temp_env)  
+  load(Fdmods[i], envir = temp_env)  
   
   # Extract the new model name from the file path
-  new_model_name <- stringr::str_match(Hwmods[i], "TSUGHET/(.*?)\\.RData")
+  new_model_name <- stringr::str_match(Fdmods[i], "PSEUMEN/(.*?)\\.RData")
   
   if (!is.na(new_model_name[,2])) {  # Check if the name extraction was successful
     # Get the name of mod in the temporary environment
@@ -48,7 +48,7 @@ for (i in seq_along(Hwmods)) {
     # Optionally remove the old model if needed
     # rm(list = model_name, envir = .GlobalEnv)  # Uncomment if you want to clean up
   } else {
-    message(paste("Could not extract name from:", Hwmods[i]))
+    message(paste("Could not extract name from:", Fdmods[i]))
   }
 }
 
@@ -61,12 +61,12 @@ load(file="data/clim.bc2k.RData") #2km
 #fill all NAs (IN THE OCEAN) with zero b/c predict function requires 
 clim.bc[is.na(clim.bc)] <- 0
 
-#add species - start with Hw
-clim.bc$Species<-"TSUGHET"
+#add species - start with Fd
+clim.bc$Species<-"PSEUMEN"
 
 #subset climate predictors 
 clim<-c("DD5", "DDsub0_at", "DDsub0_wt", "PPT_05", "PPT_06", "PPT_07", "PPT_08",
-         "PPT_09", "CMD", "PPT_at", "PPT_wt", "CMD_07", "SHM", "AHM", "NFFD", "PAS", "CMI", "Species")
+        "PPT_09", "CMD", "PPT_at", "PPT_wt", "CMD_07", "SHM", "AHM", "NFFD", "PAS", "CMI", "Species")
 clim.bc<-dplyr::select(clim.bc, clim)  
 
 #add loop through these.... 
@@ -75,21 +75,21 @@ clim.bc$NutrientRegime_clean<-"C" #zonal
 clim.bc$MoistureRegime_clean<-"4" #zonal  
 
 #make predictions
-predsHwC4<-predict(object = RF_TSUGHET_C34,data =clim.bc, type='response')
+predsFdC4<-predict(object = RF_PSEUMEN_C34,data =clim.bc, type='response')
 
 #update edaphic info   
 clim.bc$NutrientRegime_clean<-"A"   
 clim.bc$MoistureRegime_clean<-"2" 
 
 #make predictions
-predsHwA2<-predict(object = RF_TSUGHET_AB12,data =clim.bc, type='response')
+predsFdA2<-predict(object = RF_PSEUMEN_AB12,data =clim.bc, type='response')
 
 #update edaphic info   
 clim.bc$NutrientRegime_clean<-"E"   
 clim.bc$MoistureRegime_clean<-"6" 
 
 #make predictions
-predsHwE6<-predict(object = RF_TSUGHET_DE56,data =clim.bc, type='response')
+predsFdE6<-predict(object = RF_PSEUMEN_DE56,data =clim.bc, type='response')
 
 
 #make into dfs
@@ -106,43 +106,48 @@ process_predictions <- function(preds) {
   return(preds_df)
 }
 
-predsHwC4.df<-process_predictions(predsHwC4)
-predsHwA2.df<-process_predictions(predsHwA2)
-predsHwE6.df<-process_predictions(predsHwE6)
+predsFdC4.df<-process_predictions(predsFdC4)
+predsFdA2.df<-process_predictions(predsFdA2)
+predsFdE6.df<-process_predictions(predsFdE6)
 
 ##add lat, long back in
 load(file="data/clim.bc2k.RData") #2km
-predsHwA2.df<-left_join(predsHwA2.df, dplyr::select(clim.bc, id, lat, lon))%>%dplyr::select(lon, lat, ypred)%>%rename(x=lon, y=lat)
-predsHwC4.df<-left_join(predsHwC4.df, dplyr::select(clim.bc, id, lat, lon))%>%dplyr::select(lon, lat, ypred)%>%rename(x=lon, y=lat)
-predsHwE6.df<-left_join(predsHwE6.df, dplyr::select(clim.bc, id, lat, lon))%>%dplyr::select(lon, lat, ypred)%>%rename(x=lon, y=lat)
+predsFdA2.df<-left_join(predsFdA2.df, dplyr::select(clim.bc, id, lat, lon))%>%dplyr::select(lon, lat, ypred)%>%rename(x=lon, y=lat)
+predsFdC4.df<-left_join(predsFdC4.df, dplyr::select(clim.bc, id, lat, lon))%>%dplyr::select(lon, lat, ypred)%>%rename(x=lon, y=lat)
+predsFdE6.df<-left_join(predsFdE6.df, dplyr::select(clim.bc, id, lat, lon))%>%dplyr::select(lon, lat, ypred)%>%rename(x=lon, y=lat)
 
 
 #plot predictions---- 
 library(tidyterra)
 
-#load BC boundary for masking 
+#load BC boundary for masking/ plotting  
 bcboundary<-bcmaps::bc_bound_hres()
 bcbound.reproj <- st_transform(bcboundary, st_crs(4326)) #reproject to wgs84 
-plot(st_geometry(bcbound.reproj))
-  
+bcboundarylow<-bcmaps::bc_bound()
+bcboundlow.reproj <- st_transform(bcboundarylow, st_crs(4326)) #reproject to wgs84 
+#plot(st_geometry(bcbound.reproj))
+
 # Convert the data frame to a SpatRaster
-  predsHwC4.r <- rast(predsHwC4.df, crs = "EPSG:4326")
-  predsHwA2.r <- rast(predsHwA2.df, crs = "EPSG:4326")
-  predsHwE6.r <- rast(predsHwE6.df, crs = "EPSG:4326")
-  
-  # Mask areas not in the BC boundary
-  predsHwC4.r <- mask(predsHwC4.r, bcbound.reproj)
-  predsHwA2.r <- mask(predsHwA2.r, bcbound.reproj)
-  predsHwE6.r <- mask(predsHwE6.r, bcbound.reproj)
-  
-  # Convert the SpatRaster to a tidy data frame format for ggplot
+predsFdC4.r <- rast(predsFdC4.df, crs = "EPSG:4326")
+predsFdA2.r <- rast(predsFdA2.df, crs = "EPSG:4326")
+predsFdE6.r <- rast(predsFdE6.df, crs = "EPSG:4326")
+
+# Mask areas not in the BC boundary
+predsFdC4.r <- mask(predsFdC4.r, bcbound.reproj)
+predsFdA2.r <- mask(predsFdA2.r, bcbound.reproj)
+predsFdE6.r <- mask(predsFdE6.r, bcbound.reproj)
+
+
+# Convert the SpatRaster to a tidy data frame format for ggplot
 dummy<-data.frame(x=NA, y=NA, ypred=4)#add to preds if needed so all have 5 classes when plotting 
 dummy2<-data.frame(x=NA, y=NA, ypred=5)#add to preds if needed so all have 5 classes when plotting 
-  
-  predsHwC4_tidy <- as_tibble(predsHwC4.r, xy = TRUE)
-  predsHwA2_tidy <- as_tibble(predsHwA2.r, xy = TRUE)%>%rbind(., dummy2)
-  predsHwE6_tidy <- as_tibble(predsHwE6.r, xy = TRUE)%>%rbind(., dummy2)
-  
+
+predsFdC4_tidy <- as_tibble(predsFdC4.r, xy = TRUE)#%>%rbind(., dummy, dummy2)#already has all classes
+predsFdA2_tidy <- as_tibble(predsFdA2.r, xy = TRUE)#%>%rbind(., dummy, dummy2)#already has all classes
+predsFdE6_tidy <- as_tibble(predsFdE6.r, xy = TRUE)%>%rbind(., dummy, dummy2)
+
+
+
 #load raw plot data for plotting 
 load(file="data/tree_data_cleaned_wzeros.Rdata") 
 tree_dat<-tree_dat_wzeros
@@ -154,81 +159,62 @@ tree_dat<-mutate(tree_dat, TotalA_class=case_when(
   TotalA>0 & TotalA<1~1,
   TotalA==0 ~0, 
   TRUE~NA))
-Hw<-subset(tree_dat , Species=='TSUGHET') 
+Fd<-subset(tree_dat , Species=='PSEUMEN') 
 
 # Plot using ggplot2
 #make dummy variable for first plot
-predsHwC4_tidy$test<-0
-predsHwC4_tidy<-mutate(predsHwC4_tidy, test=if_else(is.na(ypred),NA, 0))
+predsFdC4_tidy$test<-0
+predsFdC4_tidy<-mutate(predsFdC4_tidy, test=if_else(is.na(ypred),NA, 0))
 
 plots<-ggplot()+ 
-  geom_raster(data = predsHwC4_tidy, aes(x = x, y = y, fill = test)) +
-  geom_point(data = Hw, aes(x = Longitude, y = Latitude, fill= TotalA_class), shape=21, size=3) +
+  geom_raster(data = predsFdC4_tidy, aes(x = x, y = y, fill = test)) +
+  geom_point(data = Fd, aes(x = Longitude, y = Latitude, fill= TotalA_class), shape=21, size=3) +
   scale_fill_grass_c(palette = 'water', direction = -1,
                      name = "Abundance class", labels = c("absent", "<1%", "1-5%", "5-25%", "25-50%",">50%"))+
-  labs(title = "Hw plot data")  + xlab(" ") + ylab(" ")+ 
-  # geom_sf(data = bcboundlow.reproj, fill = NA, color='grey')+ 
+  labs(title = "Fd plot data")  + xlab(" ") + ylab(" ")+ 
+   # geom_sf(data = bcboundlow.reproj, fill = NA, color='grey')+ 
   theme_classic() + theme(legend.position='none', axis.line=element_blank(),axis.text=element_blank(), axis.ticks = element_blank())
 c4<-ggplot() +
-  geom_raster(data = predsHwC4_tidy, aes(x = x, y = y, fill = factor(round(ypred), levels=0:5))) +
+  geom_raster(data = predsFdC4_tidy, aes(x = x, y = y, fill = factor(round(ypred), levels=0:5))) +
   scale_fill_grass_d(palette = 'water', direction = -1, breaks=0:5,
                      name = "Abundance class", labels = c("absent", "<1%", "1-5%", "5-25%", "25-50%", ">50%")) +
-  labs(title = "Hw C4") +   xlab(" ") + ylab(" ")+ 
+  labs(title = "Fd C4") +   xlab(" ") + ylab(" ")+ 
   #geom_sf(data = bcboundlow.reproj, fill = NA, color='grey')+ 
   theme_classic() + theme(axis.line=element_blank(),axis.text=element_blank(), axis.ticks = element_blank())
 l1<-ggpubr::get_legend(c4)
 c4<-ggplot() +
-  geom_raster(data = predsHwC4_tidy, aes(x = x, y = y, fill = factor(round(ypred), levels=0:5))) +
+  geom_raster(data = predsFdC4_tidy, aes(x = x, y = y, fill = factor(round(ypred), levels=0:5))) +
   scale_fill_grass_d(palette = 'water', direction = -1, breaks=0:5,
                      name = "Abundance class", labels = c("absent", "<1%", "1-5%", "5-25%", "25-50%", ">50%")) +
-  labs(title = "Hw C4") +   xlab(" ") + ylab(" ")+ 
+  labs(title = "Fd C4") +   xlab(" ") + ylab(" ")+ 
   #  geom_sf(data = bcboundlow.reproj, fill = NA, color='grey')+ 
   theme_classic() + theme(legend.position='none', axis.line=element_blank(),axis.text=element_blank(), axis.ticks = element_blank())
 a2<-ggplot() +
-  geom_raster(data = predsHwA2_tidy, aes(x = x, y = y, fill = factor(round(ypred), levels=0:5))) +
+  geom_raster(data = predsFdA2_tidy, aes(x = x, y = y, fill = factor(round(ypred), levels=0:5))) +
   scale_fill_grass_d(palette = 'water', direction = -1, breaks=0:5,
                      name = "Abundance class", labels = c("absent", "<1%", "1-5%", "5-25%", "25-50%", ">50%")) +
-  labs(title = "Hw A2") +   xlab(" ") + ylab(" ")+ 
+   labs(title = "Fd A2") +   xlab(" ") + ylab(" ")+ 
   #geom_sf(data = bcboundlow.reproj, fill = NA, color='grey')+ 
-  theme_classic() + theme(legend.position='none', axis.line=element_blank(),axis.text=element_blank(), axis.ticks = element_blank())
+   theme_classic() + theme(legend.position='none', axis.line=element_blank(),axis.text=element_blank(), axis.ticks = element_blank())
 e6<-ggplot() + 
-  geom_raster(data = predsHwE6_tidy, aes(x = x, y = y, fill = factor(round(ypred), levels=0:5))) +
+  geom_raster(data = predsFdE6_tidy, aes(x = x, y = y, fill = factor(round(ypred), levels=0:5))) +
   scale_fill_grass_d(palette = 'water', direction = -1, breaks=0:5,
                      name = "Abundance class", labels = c("absent", "<1%", "1-5%", "5-25%", "25-50%", ">50%")) +
-  labs(title = "Hw E6") +   xlab(" ") + ylab(" ")+ 
-  # geom_sf(data = bcboundlow.reproj, fill = NA, color='grey')+
+  labs(title = "Fd E6") +   xlab(" ") + ylab(" ")+ 
+ # geom_sf(data = bcboundlow.reproj, fill = NA, color='grey')+
   theme_classic() + theme(axis.line=element_blank(),axis.text=element_blank(), axis.ticks = element_blank(), 
                           plot.margin = unit(c(2, 2, 2, 2),"cm"))
 l2<-ggpubr::get_legend(e6)
 e6<-ggplot() +
-  geom_raster(data = predsHwE6_tidy, aes(x = x, y = y, fill = factor(round(ypred), levels=0:5))) +
-  scale_fill_grass_d(palette = 'water', direction = -1, breaks=0:5,
+  geom_raster(data = predsFdE6_tidy, aes(x = x, y = y, fill = factor(round(ypred), levels=0:5))) +
+   scale_fill_grass_d(palette = 'water', direction = -1, breaks=0:5,
                      name = "Abundance class", labels = c("absent", "<1%", "1-5%", "5-25%", "25-50%", ">50%")) +
-  labs(title = "Hw E6") +   xlab(" ") + ylab(" ")+ 
-  # geom_sf(data = bcboundlow.reproj, fill = NA, color='grey')+ 
+  labs(title = "Fd E6") +   xlab(" ") + ylab(" ")+ 
+ # geom_sf(data = bcboundlow.reproj, fill = NA, color='grey')+ 
   theme_classic() + theme(legend.position='none',axis.line=element_blank(),axis.text=element_blank(), axis.ticks = element_blank())
 gc()
 
 #combine into 4 panel 
-pdf(file = "outputs/ranger/RFregression_classes/TSUGHET/TSUGHET_preds_A2C4E6.pdf", width = 12, height = 8)
+pdf(file = "outputs/ranger/RFregression_classes/PSEUMEN/PSEUMEN_preds_A2C4E6.pdf", width = 12, height = 8)
 ggpubr::ggarrange(plots, c4,l1, a2, e6, l2)
 dev.off()
-
-#extra code----
-  
-  #create all edatopic combinations for predictions
-  edatopes<-expand.grid(NutrientRegime_clean= unique(tree_dat_wzeros$NutrientRegime_clean), 
-                        MoistureRegime_clean= unique(tree_dat_wzeros$MoistureRegime_clean))%>%
-    subset(MoistureRegime_clean!="1"& MoistureRegime_clean!="3"&MoistureRegime_clean!="5"&MoistureRegime_clean!="8"&
-             NutrientRegime_clean!="B"& NutrientRegime_clean!="D"& NutrientRegime_clean!="B" & NutrientRegime_clean!="F")
-  
-  # Sample data frames
-  
-  # Create empty cols to fill with info 
-  clim.bc$NutrientRegime_clean<-""
-  clim.bc$MoistureRegime_clean<-""
-  
-  
-  edatopes<-edatopes[c(1,5,9), ] #start with A2, C4, E6 only (like CCISS spatial)
-  
-  
