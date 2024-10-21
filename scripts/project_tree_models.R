@@ -25,7 +25,16 @@ load(file="data/clim.bc2k.RData") #2km
 clim.bc[is.na(clim.bc)] <- 0
 
 
-#load trained models for comparison---- 
+#load trained models ----
+load(file = "outputs/ranger/RFregression_classes/RF_TSUGHET_C34.RData")
+RFHwC34<-RF
+load(file = "outputs/ranger/RFregression_classes/RF_TSUGHET_C56.RData")
+RFHwC56<-RF
+load(file = "outputs/ranger/RFregression_classes/RF_TSUGHET_DE56.RData")
+RFHwDE56<-RF
+
+
+
 load(file="outputs/ordinalForest/RFordmodel5.Rdata")#trained on 70-30 split
 RFord5<-RFord
 load(file="outputs/ordinalForest/RFordmodel6.Rdata")#trained on 70-30 split
@@ -39,8 +48,10 @@ rm(RFord)
 load(file="outputs/ordinalForest/RFordmodel9.Rdata")#mod 6 trained on all data
 RFord9<-RFord
 rm(RFord)
+load(file = "outputs/ranger/RFmodelHwzonal.Rdata") #RF regression with cover classes HW zonal- 17 params  
 
-#add edaphic info - start with Zonal for all 
+
+#add edaphic info - start with Zonal  
 clim.bc$NutrientRegime_clean<-"C" #zonal  
 clim.bc$MoistureRegime_clean<-"4" #zonal  
 
@@ -65,6 +76,7 @@ clim9<-dplyr::select(clim.bc, clim9) #same params as clim6
 
 #make predictions for all BC 
 library(ordinalForest)
+library(ranger)
 predsm5c4Hw <-predict(object = RFord5, newdata = clim5)
 save(predsm5c4Hw, file="outputs/ordinalForest/preds/predsm5c4Hw.RData")
 predsm6c4Hw <-predict(object = RFord6, newdata = clim6)
@@ -76,6 +88,17 @@ save(predsm8c4Hw, file="outputs/ordinalForest/preds/predsm8c4Hw.RData")
 save(predsm8c4Hw, file="outputs/ordinalForest/preds/predsc4Hw.RData")
 predsm9c4Hw <-predict(object = RFord9, newdata = clim9)
 save(predsm9c4Hw, file="outputs/ordinalForest/preds/predsm9c4Hw.RData")
+predsHwzonal<-predict(object = RFmodel_HWzonal3,data =clim9, type='response')
+
+
+predsHwC34<-predict(object = RFHwC34,data =clim9, type='response')
+#update edaphic info  
+clim9$NutrientRegime_clean<-"C" #zonal  
+clim9$MoistureRegime_clean<-"6" #zonal  
+predsHwC56<-predict(object = RFHwC56,data =clim9, type='response')
+clim9$NutrientRegime_clean<-"E" #zonal  
+clim9$MoistureRegime_clean<-"6" #zonal  
+predsHwDE56<-predict(object = RFHwDE56,data =clim9, type='response')
 
 #re-do for Cw
 clim.bc$Species<-"THUJPLI"
