@@ -23,7 +23,6 @@ gc()
 #get all climate variables 
 vars<-climr::variables #look up table for vars 
 var_names<-vars$Code
-
 climrVars <- c("DD5", "DDsub0_at", "DDsub0_wt", "PPT_05", "PPT_06", "PPT_07", "PPT_08",
                "PPT_09", "CMD", "PPT_at", "PPT_wt", "CMD_07", "SHM", "AHM", "NFFD", "PAS", "CMI")
 var_names<-c(c("TotalA", "Species", "NutrientRegime_clean", "MoistureRegime_clean", "Species") , climrVars)
@@ -88,11 +87,11 @@ species_list <- unique(tree_dat_sub$Species)
 output_dir<- "outputs/ranger/RFregression_classes"
 
 #just start with 1 spp & 3 sites to test that the loop works
-#species_list<-species_list[15] 
-#site_list<-site_list[1:3] 
+#species_list<-species_list[14:16] 
+#site_list<-site_list[c(1:2,5)] 
 
 # Loop through each species, site and fit a model
-for (site in site_list) {
+for (site in site_list) {                                        
   for (species in species_list) {
   # Subset the data for the current species x edatope
   model_data <- tree_dat_sub %>% 
@@ -100,7 +99,7 @@ for (site in site_list) {
     dplyr::select(-edatope, -edatopex)#remove edatope as predictor variable (keep SMR, SNR) 
   
  # Fit RF model 
- RF<- ranger::ranger(TotalA_class~ .,data = model_data, mtry=20, classification = F) 
+ RF<- ranger::ranger(TotalA_class~ .,data = model_data, mtry=20, classification = F) #update mtry based on which climrVars
   
   # Create a filename for saving the model
   key<- paste(species, site, sep = "_")
