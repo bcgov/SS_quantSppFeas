@@ -31,6 +31,12 @@ var_names<-c(c("TotalA", "Species", "NutrientRegime_clean", "MoistureRegime_clea
 tree_dat_sub<-dplyr::select(tree_dat, var_names)
 #tree_dat_sub<-na.omit(tree_dat_sub)  #remove NAs
 gc()
+#set Nutrient and Moisture Regimes as ordinal factor
+str(tree_dat_sub)
+tree_dat_sub$NutrientRegime_clean<-ordered(tree_dat_sub$NutrientRegime_clean, levels = c("A", "B", "C", "D", "E", "F"))
+tree_dat_sub$MoistureRegime_clean<-ordered(tree_dat_sub$MoistureRegime_clean, levels = c("0", "1", "2", "3", "4", "5", "6", "7", "8"))
+str(tree_dat_sub$MoistureRegime_clean)#good 
+str(tree_dat_sub$NutrientRegime_clean)#good 
 
 #response variables----
 # Convert totalA to abundance classes
@@ -42,6 +48,7 @@ tree_dat_sub<-mutate(tree_dat_sub, TotalA_class=case_when(
   TotalA>0 & TotalA<1~1,
   TotalA==0 ~0, 
   TRUE~NA))
+
 
 #look at distribution of classes 
 hist(tree_dat_sub$TotalA_class) 
@@ -70,8 +77,8 @@ tree_dat_sub<- mutate(tree_dat_sub, edatope=case_when(edatopex=="C3"|edatopex=="
                   edatopex=="D5"|edatopex=="D6"|edatopex=="E5"|edatopex=="E6"~"DE56",
                                                 edatopex=="D0"|edatopex=="E0"~"DE0",
                                 edatopex=="D7"| edatopex=="D8"|edatopex=="E7"~"DE78",  #8 not in BYBEC
-                                                #edatopex=="F5"|edatopex=="F6"~"F56", #F not in ByBEC
-                                                #                  edatopex=="F3"~"F3", #F not in BYBEC
+                                                edatopex=="F5"|edatopex=="F6"~"F56", #F not in ByBEC
+                                                                  edatopex=="F3"~"F3", #F not in BYBEC
                                                                             TRUE~NA))
                      
                      
@@ -87,8 +94,8 @@ species_list <- unique(tree_dat_sub$Species)
 output_dir<- "outputs/ranger/RFregression_classes"
 
 #just start with 1 spp & 3 sites to test that the loop works
-#species_list<-species_list[14:16] 
-#site_list<-site_list[c(1:2,5)] 
+#species_list<-species_list[14] 
+#site_list<-site_list[c(1:2)] 
 
 # Loop through each species, site and fit a model
 for (site in site_list) {                                        
@@ -99,7 +106,7 @@ for (site in site_list) {
     dplyr::select(-edatope, -edatopex)#remove edatope as predictor variable (keep SMR, SNR) 
   
  # Fit RF model 
- RF<- ranger::ranger(TotalA_class~ .,data = model_data, mtry=20, classification = F) #update mtry based on which climrVars
+ RF<- ranger::ranger(TotalA_class~ .,data = model_data, mtry=20, classification = F) 
   
   # Create a filename for saving the model
   key<- paste(species, site, sep = "_")
