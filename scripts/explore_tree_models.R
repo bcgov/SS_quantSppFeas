@@ -41,9 +41,9 @@ climSimple<-c("PPT_at", "PPT_wt", "PPT_sp", "PPT_sm", 'Tmax_at', "Tmax_wt", "Tma
               'Tmin_at', "Tmin_wt", "Tmin_sp", "Tmin_sm")
               
 #choose one 
-#var_names<-c(c("TotalA", "Species", "NutrientRegime_clean", "MoistureRegime_clean", "Species") , climrVars)
+var_names<-c(c("TotalA", "Species", "NutrientRegime_clean", "MoistureRegime_clean", "Species") , climrVars)
 #var_names<-c(c("TotalA", "Species", "NutrientRegime_clean", "MoistureRegime_clean", "Species") , climPredictors)
-var_names<-c(c("TotalA", "Species", "NutrientRegime_clean", "MoistureRegime_clean", "Species") , climSimple)
+#var_names<-c(c("TotalA", "Species", "NutrientRegime_clean", "MoistureRegime_clean", "Species") , climSimple)
 
 #create dataset with all preds for rf model 
 tree_dat_sub<-dplyr::select(tree_dat, var_names)
@@ -127,31 +127,28 @@ plot(test_data$TotalA, preds$predictions)
 cor.test(test_data$TotalA, preds$predictions)#r=0.52, r2=0.27 (so about the same as OOB)
 
 
-#try running with a regression for tmin, tmax, and precip for the four seasons
-#start with one species & edatope and 8 classes based on Domin-Krajina scale  
-tree_dat_sub<-mutate(tree_dat_sub, TotalA_DK=case_when(TotalA>75~8, 
-#                                         TotalA>75 & TotalA<=90~8,
-                                         TotalA>50 & TotalA<=75~7,
-                                         TotalA>35 & TotalA<=50~6, 
-                                         TotalA>25 & TotalA<=35~5,
-                                         TotalA>10 & TotalA<=25~4,
-                                         TotalA>=5 & TotalA<=10~3,
+#RF regression ----
+#start with one species & edatope and 6 classes   
+tree_dat_sub<-mutate(tree_dat_sub, TotalA_class=case_when(
+                                         TotalA>50 & TotalA<=100~5,
+                                         TotalA>25 & TotalA<=50~4,
+                                         TotalA>=5 & TotalA<=25~3,
                                          TotalA>=1 & TotalA<5~2,
                                          TotalA>0 & TotalA<1~1,
                                            TotalA==0 ~0, 
                                            TRUE~NA))
 
 #look at distribution of classes 
-hist(tree_dat_sub$TotalA_DK) 
-knitr::kable(group_by(tree_dat_sub, TotalA_DK)%>%summarise(counts=n()))
+hist(tree_dat_sub$TotalA_class) 
+knitr::kable(group_by(tree_dat_sub, TotalA_class)%>%summarise(counts=n()))
 
-#remove continuous abundance for modeling 
-tree_dat_sub$TotalA<-NULL 
 
 #run for one spp/edatope space 
 tree_dat_sub_Hw<-subset(tree_dat_sub, Species=="TSUGHET")
 #now try predicting just one edatope
 tree_dat_sub_Hwzonal<-subset(tree_dat_sub_Hw, NutrientRegime_clean=="C")%>%subset(MoistureRegime_clean=="4"|MoistureRegime_clean=="3")
+#remove continuous abundance for modeling 
+tree_dat_sub_Hwzonal$TotalA<-NULL 
 
 # Split the dataset into training and testing sets
 set.seed(123) 
@@ -161,7 +158,7 @@ test_data <- tree_dat_sub_Hwzonal[-train_indices, ]
 
 #run the model - 12 simple climate params 
 RFmodel_HWzonal <- ranger::ranger(
-  TotalA_DK~ .,
+  TotalA_class~ .,
   data = train_data,
   #splitrule = "maxstat",  #recommended for accurate importance feature ranking
   #importance = 'permutation',
@@ -172,12 +169,12 @@ RFmodel_HWzonal <- ranger::ranger(
 preds <- predict(RFmodel_HWzonal, data = test_data)
 
 #regress
-plot(test_data$TotalA_DK, preds$predictions)
-cor.test(test_data$TotalA_DK, preds$predictions)#r=0.76 %
+plot(test_data$TotalA_class, preds$predictions)
+cor.test(test_data$TotalA_class, preds$predictions)#r=0.76 %
 
 #try the same model but with classification 
 RFmodel_HWzonal_class <- ranger::ranger(
-  TotalA_DK~ .,
+  TotalA_class~ .,
   data = train_data,
   #splitrule = "maxstat",  #recommended for accurate importance feature ranking
   #importance = 'permutation',
@@ -187,7 +184,7 @@ RFmodel_HWzonal_class <- ranger::ranger(
 preds2 <- predict(RFmodel_HWzonal_class, data = test_data)
 
 #confusion matrix 
-conf_mat<-table('true'=test_data$TotalA_DK, 'predicted'=preds2$predictions) 
+conf_mat<-table('true'=test_data$TotalA_class, 'predicted'=preds2$predictions) 
 accuracy <- sum(diag(conf_mat)) / sum(conf_mat) #acc = 0.66 
 conf_mat
 
@@ -196,7 +193,7 @@ conf_mat
 
 #run the model - 11 derived climate params 
 RFmodel_HWzonal2 <- ranger::ranger(
-  TotalA_DK~ .,
+  TotalA_class~ .,
   data = train_data,
   #splitrule = "maxstat",  #recommended for accurate importance feature ranking
   #importance = 'permutation',
@@ -206,13 +203,12 @@ RFmodel_HWzonal2 <- ranger::ranger(
 preds <- predict(RFmodel_HWzonal2, data = test_data)
 
 #regress
-plot(test_data$TotalA_DK, preds$predictions)
-cor.test(test_data$TotalA_DK, preds$predictions)#r=0.82 %
-
+plot(test_data$TotalA_class, preds$predictions)
+cor.test(test_data$TotalA_class, preds$predictions)#r=0.815
 
 #run the model - 17 climate params 
 RFmodel_HWzonal3 <- ranger::ranger(
-  TotalA_DK~ .,
+  TotalA_class~ .,
   data = train_data,
   #splitrule = "maxstat",  #recommended for accurate importance feature ranking
   #importance = 'permutation',
@@ -222,8 +218,26 @@ RFmodel_HWzonal3 <- ranger::ranger(
 preds <- predict(RFmodel_HWzonal3, data = test_data)
 
 #regress
-plot(test_data$TotalA_DK, preds$predictions)
-cor.test(test_data$TotalA_DK, preds$predictions)#r=0.82 %
+plot(test_data$TotalA_class, preds$predictions)
+cor.test(test_data$TotalA_class, preds$predictions)#r=0.82
+
+#compare modsa
+print(RFmodel_HWzonal3) #R2=0.64
+print(RFmodel_HWzonal2) #R2=0.63
+print(RFmodel_HWzonal) #R2=0.64
+
+
+#run the model on all data for training- 17 climate params 
+RFmodel_HWzonal3 <- ranger::ranger(
+  TotalA_class~ .,
+  data = tree_dat_sub_Hwzonal,
+  #splitrule = "maxstat",  #recommended for accurate importance feature ranking
+  #importance = 'permutation',
+  mtry=20, classification = F) 
+
+save(RFmodel_HWzonal3, file="outputs/ranger/RFmodelHwzonal.Rdata")
+
+print(RFmodel_HWzonal3)#R2=0.68
 
 #ordinal forest models----
 # Convert totalA to an ordered factor
@@ -373,5 +387,6 @@ preds <- predict(RFordHw2, newdata=tree_dat_sub_Hwzonal)
 conf_mat<-table('true'=tree_dat_sub_Hwzonal$cover_rank, 'predicted'=predszonal$ypred) 
 accuracy <- sum(diag(conf_mat)) / sum(conf_mat) #acc = 0.71
 conf_mat
+
 
 
