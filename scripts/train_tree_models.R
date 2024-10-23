@@ -54,11 +54,10 @@ tree_dat_sub<-mutate(tree_dat_sub, TotalA_class=case_when(
 hist(tree_dat_sub$TotalA_class) 
 knitr::kable(group_by(tree_dat_sub, TotalA_class)%>%summarise(counts=n()))
 
-
-#train random forest models by spp----
 #remove continuous abundance for modeling 
 tree_dat_sub$TotalA<-NULL 
 
+#single edatope models----
 #create a unique variable for the 15 edatopic spaces to train on 
 tree_dat_sub$edatopex<-paste(tree_dat_sub$NutrientRegime_clean, tree_dat_sub$MoistureRegime_clean, sep="")
 tree_dat_sub<- mutate(tree_dat_sub, edatope=case_when(edatopex=="C3"|edatopex=="C4"~"C34",
@@ -91,7 +90,7 @@ library(ranger)
 # List of unique species & sites (edatopic spaces)
 site_list<-unique(tree_dat_sub$edatope)
 species_list <- unique(tree_dat_sub$Species)
-output_dir<- "outputs/ranger/RFregression_classes"
+output_dir<- "outputs/ranger/RFregression_classes/Single_edatope"
 
 #just start with 1 spp & 3 sites to test that the loop works
 #species_list<-species_list[14] 
@@ -118,15 +117,15 @@ for (site in site_list) {
  }
 }
 
-
+#multi edatope models----
 #Now run model for each species with all edatopes 
 species_list <- unique(tree_dat_sub$Species)
 output_dir<- "outputs/ranger/RFregression_classes"
 
-#just start with 3 spp  to test that the loop works
-species_list<-species_list[15:17] 
+#just start with a few spp  to test that the loop works
+species_list<-species_list[15:16] 
 
-tree_dat_sub<-dplyr::select(tree_dat_sub, -edatope, -edatopex)#remove edatope as predictor variable (keep SMR, SNR) 
+#tree_dat_sub<-dplyr::select(tree_dat_sub, -edatope, -edatopex)#remove edatope as predictor variable (keep SMR, SNR) 
 
 # Loop through each species, site and fit a model
   for (species in species_list) {
