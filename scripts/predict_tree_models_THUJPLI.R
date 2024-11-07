@@ -197,34 +197,15 @@ pdf(file = "outputs/ranger/RFregression_classes/pred_maps/THUJPLI_preds_B2C4E6.p
 ggpubr::ggarrange(plots, c4,l1, B2, e6, l2)
 dev.off()
 
-#extract preds from plot locations for cross validation
+#k-fold CV----
+library(blockCV)
+#get plots in sf 
 Cwplots_sf = st_as_sf(Cw, coords = c("Longitude", "Latitude"), 
                       crs = 4326, agr = "constant")
-CV_CwC4<-terra::extract(predsCwC4.r, Cwplots_sf)%>%cbind(., select(Cw, TotalA_class, NutrientRegime_clean, MoistureRegime_clean))%>%
-  subset(., NutrientRegime_clean=="C" & MoistureRegime_clean=="4")
 
-CV_CwB2<-terra::extract(predsCwB2.r, Cwplots_sf)%>%cbind(., select(Cw, TotalA_class, NutrientRegime_clean, MoistureRegime_clean))%>%
-  subset(., NutrientRegime_clean=="B" & MoistureRegime_clean=="2")
 
-CV_CwE6<-terra::extract(predsCwE6.r, Cwplots_sf)%>%cbind(., select(Cw, TotalA_class, NutrientRegime_clean, MoistureRegime_clean))%>%
-  subset(., NutrientRegime_clean=="E" & MoistureRegime_clean=="6")
 
-cor.test(CV_CwC4$ypred, CV_CwC4$TotalA_class) #77% 
-cor.test(log(CV_CwC4$ypred+1), log(CV_CwC4$TotalA_class+1)) #78% 
 
-ggplot(data=CV_CwC4, aes(x=as.factor(TotalA_class), y=ypred))+
-  geom_boxplot()+ geom_jitter(alpha=0.75, shape=21)+
-  theme_classic()+ggtitle("Cw C4 predictions")+ xlab("plot abundance class") + ylab("pred abundance class")
-
-cor.test(CV_CwB2$ypred, CV_CwB2$TotalA_class) #67% 
-ggplot(data=CV_CwB2, aes(x=as.factor(TotalA_class), y=ypred))+
-  geom_boxplot()+ geom_jitter(alpha=0.75, shape=21)+
-  theme_classic()+ggtitle("Cw B2 predictions")+ xlab("plot abundance class") + ylab("pred abundance class")
-
-cor.test(CV_CwE6$ypred, CV_CwE6$TotalA_class) #88% #very few obs
-ggplot(data=CV_CwE6, aes(x=as.factor(TotalA_class), y=ypred))+
-  geom_boxplot()+ geom_jitter(alpha=0.75, shape=21)+
-  theme_classic()+ggtitle("Cw E6 predictions")+ xlab("plot abundance class") + ylab("pred abundance class")
 
 #single edatope models----
 folder_path <- "outputs/ranger/RFregression_classes/Single_edatope/THUJPLI"  
@@ -263,6 +244,37 @@ predsCwC4<-predict(object = RF_THUJPLI_C34,data =clim.bc, type='response') #sing
 predsCwB2<-predict(object = RF_THUJPLI_AB12,data =clim.bc, type='response')#single edatope
 predsCwE6<-predict(object = RF_THUJPLI_DE56,data =clim.bc, type='response')#single edatope
 
+
+
+
+#extract preds from plot locations for cross validation
+Cwplots_sf = st_as_sf(Cw, coords = c("Longitude", "Latitude"), 
+                      crs = 4326, agr = "constant")
+CV_CwC4<-terra::extract(predsCwC4.r, Cwplots_sf)%>%cbind(., select(Cw, TotalA_class, NutrientRegime_clean, MoistureRegime_clean))%>%
+  subset(., NutrientRegime_clean=="C" & MoistureRegime_clean=="4")
+
+CV_CwB2<-terra::extract(predsCwB2.r, Cwplots_sf)%>%cbind(., select(Cw, TotalA_class, NutrientRegime_clean, MoistureRegime_clean))%>%
+  subset(., NutrientRegime_clean=="B" & MoistureRegime_clean=="2")
+
+CV_CwE6<-terra::extract(predsCwE6.r, Cwplots_sf)%>%cbind(., select(Cw, TotalA_class, NutrientRegime_clean, MoistureRegime_clean))%>%
+  subset(., NutrientRegime_clean=="E" & MoistureRegime_clean=="6")
+
+cor.test(CV_CwC4$ypred, CV_CwC4$TotalA_class) #77% 
+cor.test(log(CV_CwC4$ypred+1), log(CV_CwC4$TotalA_class+1)) #78% 
+
+ggplot(data=CV_CwC4, aes(x=as.factor(TotalA_class), y=ypred))+
+  geom_boxplot()+ geom_jitter(alpha=0.75, shape=21)+
+  theme_classic()+ggtitle("Cw C4 predictions")+ xlab("plot abundance class") + ylab("pred abundance class")
+
+cor.test(CV_CwB2$ypred, CV_CwB2$TotalA_class) #67% 
+ggplot(data=CV_CwB2, aes(x=as.factor(TotalA_class), y=ypred))+
+  geom_boxplot()+ geom_jitter(alpha=0.75, shape=21)+
+  theme_classic()+ggtitle("Cw B2 predictions")+ xlab("plot abundance class") + ylab("pred abundance class")
+
+cor.test(CV_CwE6$ypred, CV_CwE6$TotalA_class) #88% #very few obs
+ggplot(data=CV_CwE6, aes(x=as.factor(TotalA_class), y=ypred))+
+  geom_boxplot()+ geom_jitter(alpha=0.75, shape=21)+
+  theme_classic()+ggtitle("Cw E6 predictions")+ xlab("plot abundance class") + ylab("pred abundance class")
 
 
 
