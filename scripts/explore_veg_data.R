@@ -13,11 +13,19 @@
 library(tidyverse)
 require(data.table)
 
+<<<<<<< HEAD
 #pull in climate data ----
 # cache_clear()
 # source("scripts/climr_getdata_plots.R") #ignore warnings
 plot_dat <- fread("data/plot_dat_climr.csv")
 #merge with veg data---- 
+=======
+#pull in climate & plot data ----
+load(file= 'data/clim_dat.plots.Rdata') #59314 obs
+
+#merge with veg & site data
+BEC_data<-readRDS("data/BEC_data.rds") #change this to OS #13 
+>>>>>>> 819affeee6218bb84e308624a294dc7568351012
 veg_dat<-BEC_data$veg
 all_dat<-left_join(veg_dat, plot_dat)#join with plot & climate info 
 
@@ -27,7 +35,6 @@ all_dat<-left_join(all_dat, rename(site_dat, PlotNumber=Plot))#join with plot & 
 #clean up veg data----
 rm(plot_dat)
 rm(site_dat)
-rm(my_points)
 rm(veg_dat)
 gc()
 
@@ -77,10 +84,10 @@ cols_keep<-subset(col_cts, n_obs>30000)
 cols_keep<-cols_keep$cols
 
 #filter for only consistently recorded columns 
-tree_dat<-select(tree_dat, all_of(cols_keep))
+tree_dat<-dplyr::select(tree_dat, all_of(cols_keep))
 
 #remove info not using
-tree_dat<-select(tree_dat, 
+tree_dat<-dplyr::select(tree_dat, 
     -Cover2, -FSRegionDistrict, -SV_FloodPlain, -ProvinceStateTerritory, 
     -NtsMapSheet, -Flag, -SpeciesListComplete, -UpdatedFromCards, -Zone, -Ecosection)
 names(tree_dat)
@@ -98,7 +105,7 @@ unique(tree_dat$NutrientRegime)# need to finalize calls on all
 unique(tree_dat$MoistureRegime) # need to finalize calls on all 
 
 #try to create table to fill in from
-SMRs<-group_by(tree_dat, SiteUnit)%>%select(MoistureRegime, NutrientRegime) %>%distinct()%>%mutate(ctMoist=n_distinct(MoistureRegime))%>%
+SMRs<-group_by(tree_dat, SiteUnit)%>%dplyr::select(MoistureRegime, NutrientRegime) %>%distinct()%>%mutate(ctMoist=n_distinct(MoistureRegime))%>%
   mutate(ctNut=n_distinct(NutrientRegime))%>%mutate(MoistNA= is.na(MoistureRegime))%>%mutate(NutNA= is.na(NutrientRegime))
 
 #set rules for transitional SMRs and SNRs 
@@ -179,10 +186,13 @@ SMRs<-mutate(SMRs, MoistureRegime_clean = case_when(MoistureRegime=="$" ~ "NA",
                                                     MoistureRegime=="8" ~ "8",
                                                     MoistureRegime=="PM" ~ "NA"))
 
-SMRs<-select(SMRs, SiteUnit, MoistureRegime, NutrientRegime, NutrientRegime_clean, MoistureRegime_clean)
+SMRs<-dplyr::select(SMRs, SiteUnit, MoistureRegime, NutrientRegime, NutrientRegime_clean, MoistureRegime_clean)
 
 #merge back to tree data
 tree_dat<-left_join(tree_dat, SMRs)
+
+#remove rows with NAs in Moisture/Nutrient regimes 
+tree_dat<- subset(tree_dat, NutrientRegime_clean!="NA"& MoistureRegime_clean!="NA")
 
 #look at other veg vars of interest
 hist(tree_dat$StrataCoverTree) #normally distributed-ish  #is this all tree spp combined??
@@ -199,19 +209,69 @@ names(tree_dat)
 tree_dat<-mutate(tree_dat, Species=if_else(Species=="PINUCON1"|Species=="PINUCON2","PINUCON", Species))%>%
   mutate(Species=if_else(Species=="PSEUMEN1"|Species=="PSEUMEN2","PSEUMEN", Species))
 
+#check for NAs 
+tree_dat2<-na.omit(tree_dat)
+nas<-anti_join(tree_dat, tree_dat2)
 
-#look at most measured spp----- 
+nacols <- function(df) {
+  colnames(df)[unlist(lapply(df, function(x) any(is.na(x))))]
+}
+nacols(nas) #not using any of these columns in the modeling so should be good 
+
+#save cleaned tree data----
+save(tree_dat, file="data/tree_data_cleaned.Rdata")
+
+#add zeroes to plots where species not observed---- 
+#load(file="data/tree_data_cleaned.Rdata")
 spp_tab0<-tree_dat%>%
   group_by(Species)%>%
   summarise(nobs=n())
-spp_keep<-subset(spp_tab0, nobs>300)
+spp_keep<-subset(spp_tab0, nobs>250)
 spp_keep<-spp_keep$Species #16 
+
 #filter to 16
 tree_dat<-subset(tree_dat, Species %in% spp_keep)
 unique(tree_dat$Species)              
 
+#expand grid
+tree_dat_wzeros<-expand.grid(PlotNumber=unique(tree_dat$PlotNumber), Species=spp_keep)
+
+#bring back in climate data by plot 
+load(file= 'data/clim_dat.plots.Rdata')
+tree_dat_wzeros<-left_join(tree_dat_wzeros, plot_dat)
+gc()
+
+#merge back in plot data (minus climate)
+sort(names(tree_dat))
+tree_dat<-dplyr::select(tree_dat,  PlotNumber, Species, TotalA, ID, ProjectID, Date, #SiteSurveyor,PlotRepresenting, Location,
+  Longitude, Latitude, LocationAccuracy, SubZone, SiteSeries, MoistureRegime,           
+  NutrientRegime, Elevation, SlopeGradient, Aspect, MesoSlopePosition, #SubstrateDecWood, SubstrateBedRock,
+  #SubstrateRocks, SubstrateMineralSoil, SubstrateOrganicMatter, SubstrateWater, SurficialMaterialSurf, 
+  SoilDrainage, HumusForm, StrataCoverTree, StrataCoverShrub, StrataCoverHerb, StrataCoverMoss, UserSiteUnit, GIS_BGC, GIS_BGC_VER,
+  StrataCoverTotal, Elevation_overlay, SiteUnit, Site, bgc, NutrientRegime_clean, MoistureRegime_clean, year)
+#pull out tree cover 
+plot_dat2<-dplyr::select(tree_dat, -Species, -TotalA, -ID)%>%distinct(.)
+tree_dat_wzeros<-left_join(tree_dat_wzeros, plot_dat2) #check warnings about duplicated info 
+tree_dat_wzeros<-distinct(tree_dat_wzeros)
+#put tree cover back in 
+tree_dat2<-dplyr::select(tree_dat, PlotNumber, Species, TotalA, ID)%>%distinct(.)
+tree_dat_wzeros<-left_join(tree_dat_wzeros, tree_dat2)%>%relocate(c(TotalA, ID), .after = Species)
+
+#now add in zeroes where total A is NA
+tree_dat_wzeros<-mutate(tree_dat_wzeros, TotalA=if_else(is.na(TotalA), 0, TotalA))
+
+hist(tree_dat_wzeros$TotalA) #very zero inflated 
+
+#check for NAs 
+sort(nacols(tree_dat_wzeros))
+
+#save
+save(tree_dat_wzeros, file="data/tree_data_cleaned_wzeros.Rdata") #too big to push- save on OS #13
+
+#EXTRA CODE-NOT CURRENTLY USING 
+#look at most measured spp----- 
 #Western red Cedar 
-Cw<-subset(tree_dat, Species=='THUJPLI')  #3814 obs
+Cw<-subset(tree_dat, Species=='THUJPLI')  #3639 obs
 ggplot(Cw, aes(y=TotalA, x=MAT, color=Site))+
   geom_point()+
   facet_wrap(~bgc) 
@@ -315,12 +375,10 @@ ggplot(Sb, aes(y=TotalA, x=MAT, color=Site))+
 #uneven sampling across BGCs by species, may need stronger threshold for number obs per BGC per site, species etc
 #currently n=2+ 
 
-#save cleaned tree data----
-save(tree_dat, file="data/tree_data_cleaned.Rdata")
-
 #Save top 16 species level datasets
 #save(Cw, Hw, Se, Fd, Bl, Pl, Ba, Hm, Yc, Ss, At, Ep, Py, Sw, Lw, Sb, file="data/tree_spp_data_cleaned.Rdata")
 
+<<<<<<< HEAD
 #add zeroes to plots where species not observed---- 
 rm(list = ls())
 load(file="data/tree_data_cleaned.Rdata")
@@ -440,105 +498,8 @@ tree_dat<-mutate(tree_dat, Species=if_else(Species=="PINUCON1"|Species=="PINUCON
 sort(unique(feas_tab$Species))
 sort(unique(tree_dat$Species))
 #have plot data but missing feasibility ratings on Tw (TAXUBRE-Western Yew) 
+=======
+>>>>>>> 819affeee6218bb84e308624a294dc7568351012
 
 
-#combine feas table with plot data----
-tree_dat<-mutate(tree_dat,  ss_nospace= gsub(" ", "", SiteUnit)) #create matching column to feas table
-
-#filter feas table
-#take out the US and alberta stuff because it won't match plot data
-feas_tab<-filter(feas_tab, !grepl('_CA|_OR|_WA|_ID|_MT|_CA|_WY|_CO|_NV|UT|BSJP|abE|abN|abS|abE|abC|SBAP|SASbo|PPxh|MSd|MSx', bgc))
-#subset to only top 16 spp
-spp_tab0<-tree_dat%>%  group_by(Species)%>%  summarise(nobs=n())
-spp_keep<-subset(spp_tab0, nobs>300)
-feas_tab<-subset(feas_tab, Species %in% spp_keep$Species)
-rm(spp_tab0)
-
-#join
-#tree_datx<-left_join(tree_datx, feas_tab, relationship = "many-to-many")
-tree_datx<-left_join(tree_dat, feas_tab, relationship = "many-to-many")
-#confirm that joined by ALL 3 columns: Species, bgc, ss_nospace 
-
-#why did rows get added??
-names(tree_datx)
-tree_daty<-select(tree_datx, - spp, -feasible, -newfeas, -mod)
-extrarows<-setdiff(tree_dat, tree_daty) #0 rows->wtf??? 
-rm(tree_daty)
-
-checknas<-subset(tree_datx, is.na(newfeas)) #where merge failed (~half of the data)
-
-
-#some of these are missing species feasibility ratings, some are needing crosswalks & other issues  
-
-###need to fix the 01 to 101s with crosswalks!!### 
-sites<-select(checknas, bgc, ss_nospace)%>%distinct(.)
-sites<-separate(sites, ss_nospace, c("bgc", "edatope"), sep = "/", remove = F)
-sites$edatope2<-as.numeric(as.character(sites$edatope))
-sitesx<-subset(sites, edatope2>99) #filter out only ones needing crosswalks 
-sitesx$edatope2<-NULL
-write.csv(sitesx, "data/crosswalkforfeastables.csv")
-
-sites<-anti_join(sites, sitesx)
-sites$edatope2<-NULL
-listsites<-unique(sites$ss_nospace)
-missingfeas<-filter(checknas, ss_nospace %in% listsites)%>%
-  select(bgc, ss_nospace, Species)%>%distinct(.)
-unique(missingfeas$Species)
-missingfeas<-mutate(missingfeas, spp= case_when(Species=="ABIEAMA" ~"Ba",
-                                                Species=="ABIELAS" ~"Bl",
-                                                Species=="BETUPAP"~"Ep", 
-                                                Species=="PICEENE"~"Se",
-                                                Species=="PICEGLA"~"Sw",
-                                                Species=="PICEMAR"~"Sb",
-                                                Species=="PICEXLU"~ "Sxl",
-                                                Species=="PINUALB"~"Pa",
-                                                Species=="PINUCON"~"Pl",
-                                                Species=="PINUMON"~"Pw",
-                                                Species=="POPUTRE"~ "At",
-                                                Species=="POPUTRI"~ "Act",
-                                                Species=="PSEUMEN"~ "Fd",
-                                                Species== "THUJPLI"~ "Cw",
-                                                Species=="TSUGHET"~ "Hw")) 
-write.csv(sites, "data/missingfeas.csv")
-
-#crosswalks needed 
-#BWBS-LMH 65- Appendix 1
-#IDF/MS- LMH 71-2.2 table 1
-#IDF/ESSF/MS-LMH 75 
-
-#look at whether feasibility is reflective of plot level abundance by species 
-ggplot(tree_datx, aes(y=TotalA, x=newfeas))+
-  geom_point()+
-  facet_wrap(~Species) 
-
-cor.test(tree_datx$TotalA, tree_datx$newfeas) #-0.25
-
-ggplot(tree_datx, aes(y=TotalA, x=as.factor(newfeas)))+
-  #geom_point() +
-  geom_violin()
-
-group_by(tree_datx, newfeas)%>%summarise(meds=median(TotalA), mean=mean(TotalA))
-
-cors<- group_by(tree_datx, Species)%>% 
-  summarise(abun_feas_cor=cor(TotalA, newfeas, use="na.or.complete")) 
-max(cors$abun_feas_cor, na.rm = T)#-0.72 to +0.25 varies a lot by spp 
-min(cors$abun_feas_cor, na.rm = T)
-
-#two spp with pos correlations which is opposite of expected-> poor data coverage->could be because of crosswalks   
-#POPUTRI 0.24638427
-#PINUALB 0.14793807 
-
-
-#make a blank table with all site series and all species
-ssFULL<-read.csv("data/SiteSeries_names_v12_15.csv")
-ssFULL$SiteSeriesLongName<-NULL
-spp_tab0<-tree_dat%>%
-  group_by(Species)%>%
-  summarise(nobs=n())
-spp_keep<-subset(spp_tab0, nobs>300)
-ssxsppp<-expand.grid(ss_nospace=ssFULL$SS_NoSpace, Species=spp_keep$Species)
-
-allfeas<-left_join(ssxsppp, feas_tab)
-feasmatch<-subset(allfeas,!is.na(newfeas))
-feasissues<-anti_join(feas_tab, feasmatch)
 

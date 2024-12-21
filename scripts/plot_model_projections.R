@@ -28,9 +28,26 @@ load("outputs/ordinalForest/preds/predsm9c4Hw.RData")
 load("outputs/ordinalForest/preds/predsm9c4Cw.RData")
 load("outputs/ordinalForest/preds/predsm9c4Fd.RData")
 
-#create functions to streamline this!!! ####
+
 
 #make into dfs
+process_predictions <- function(preds) {
+  # Convert predictions to a data frame
+  preds_df <- as.data.frame(preds$predictions)
+  
+  # Create an ID column based on row names, converting to numeric
+  preds_df$id <- as.numeric(as.character(row.names(preds_df)))
+  
+  # Rename columns to "ypred" and "id"
+  colnames(preds_df) <- c("ypred", "id")
+  
+  return(preds_df)
+}
+
+predsHwC56.df<-process_predictions(predsHwC56)
+predsHwC34.df<-process_predictions(predsHwC34)
+predsHwDE56.df<-process_predictions(predsHwDE56)
+
 predsm5c4Hw<-as.data.frame(predsm5c4Hw$ypred) 
 predsm5c4Hw$id<-as.numeric(as.character(row.names(predsm5c4Hw)))
 colnames(predsm5c4Hw)<- c("ypred", "id")
@@ -67,6 +84,15 @@ predsm9c4Fd<-as.data.frame(predsm9c4Fd$ypred)
 predsm9c4Fd$id<-as.numeric(as.character(row.names(predsm9c4Fd)))
 colnames(predsm9c4Fd)<- c("ypred", "id")
 
+predsRFHwzonal<-as.data.frame(predsHwzonal$predictions)
+predsRFHwzonal$id<-as.numeric(as.character(row.names(predsRFHwzonal)))
+colnames(predsRFHwzonal)<- c("ypred", "id")
+
+
+predsHwDE56.df<-
+predsHwC56.df<-
+predsHwC34.df
+
 ##add lat, long back in
 load(file="data/clim.bc2k.RData") #2km
 predsm5c4Hw<-left_join(predsm5c4Hw, dplyr::select(clim.bc, id, lat, lon))
@@ -78,17 +104,12 @@ predsm8c4Cw<-left_join(predsm8c4Cw, dplyr::select(clim.bc, id, lat, lon))
 predsm9c4Cw<-left_join(predsm9c4Cw, dplyr::select(clim.bc, id, lat, lon))
 predsm8c4Fd<-left_join(predsm8c4Fd, dplyr::select(clim.bc, id, lat, lon))
 predsm9c4Fd<-left_join(predsm9c4Fd, dplyr::select(clim.bc, id, lat, lon))
+predsRFHwzonal<-left_join(predsRFHwzonal, dplyr::select(clim.bc, id, lat, lon))
 
-#rename for raster creation 
-predsm5c4Hw<-dplyr::select(predsm5c4Hw, lon, lat, ypred)%>%rename(x=lon, y=lat)
-predsm6c4Hw<-dplyr::select(predsm6c4Hw, lon, lat, ypred)%>%rename(x=lon, y=lat)
-predsm7c4Hw<-dplyr::select(predsm7c4Hw, lon, lat, ypred)%>%rename(x=lon, y=lat)
-predsm8c4Hw<-dplyr::select(predsm8c4Hw, lon, lat, ypred)%>%rename(x=lon, y=lat)
-predsm9c4Hw<-dplyr::select(predsm9c4Hw, lon, lat, ypred)%>%rename(x=lon, y=lat)
-predsm8c4Cw<-dplyr::select(predsm8c4Cw, lon, lat, ypred)%>%rename(x=lon, y=lat)
-predsm9c4Cw<-dplyr::select(predsm9c4Cw, lon, lat, ypred)%>%rename(x=lon, y=lat)
-predsm8c4Fd<-dplyr::select(predsm8c4Fd, lon, lat, ypred)%>%rename(x=lon, y=lat)
-predsm9c4Fd<-dplyr::select(predsm9c4Fd, lon, lat, ypred)%>%rename(x=lon, y=lat)
+
+predsHwDE56.df<-left_join(predsHwDE56.df, dplyr::select(clim.bc, id, lat, lon))%>%dplyr::select(lon, lat, ypred)%>%rename(x=lon, y=lat)
+predsHwC56.df<-left_join(predsHwC56.df, dplyr::select(clim.bc, id, lat, lon))%>%dplyr::select(lon, lat, ypred)%>%rename(x=lon, y=lat)
+predsHwC34.df<-left_join(predsHwC34.df, dplyr::select(clim.bc, id, lat, lon))%>%dplyr::select(lon, lat, ypred)%>%rename(x=lon, y=lat)
 
 
 #plot predictions----
@@ -114,6 +135,13 @@ Fd1<-subset(Fd, cover_rank=="1")
 #load BC boundary for masking 
 bcboundary<-bcmaps::bc_bound_hres()
 bcbound.reproj <- st_transform(bcboundary, st_crs(4326)) #reproject to wgs84 
+
+
+
+predsm9c4Fdr<-rasterFromXYZ(predsm9c4Fd)
+predsm9c4Fdr<-mask(predsm9c4Fdr, bcbound.reproj)#mask areas not in BC boundary 
+
+
 
 #turn preds into raster & plot-m5---- 
 predsm5c4Hwr<-rasterFromXYZ(predsm5c4Hw)
@@ -314,3 +342,5 @@ geom_spatraster(data = temp_rast, aes(fill = tavg_04))
 
 
 
+
+turn preds into raster & 

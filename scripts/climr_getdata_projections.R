@@ -26,14 +26,18 @@ my_grid <- as.data.frame(dem.bc, cells = TRUE, xy = TRUE)
 colnames(my_grid) <- c("id", "lon", "lat", "elev") # rename column names to what climr expects
 
 ## climr call- This will return the observed 1961-1990 climates for the raster grid points. 
+#which variables do we want? 
+varsl = c("DD5", "DDsub0_at", "DDsub0_wt", "PPT_05", "PPT_06", "PPT_07", "PPT_08",
+         "PPT_09", "CMD", "PPT_at", "PPT_wt", "CMD_07", "SHM", "AHM", "NFFD", "PAS", 
+         "CMI", "Tmax_sm", "TD", "PPT_sm", "DD5_sp", 
+         "PPT_sp", "PPT_sm", "Tmax_at", "Tmax_wt", "Tmax_sp", "Tmax_sm","Tmin_at", "Tmin_wt", "Tmin_sp", "Tmin_sm")
+varsl<-unique(varsl)#make sure no dups 
+
 cache_clear()
 clim.bcv <- downscale(
-  xyz = my_grid, 
-  out_spatial = TRUE,
+  xyz = my_grid,  out_spatial = TRUE,   which_refmap = "refmap_climr",
   #obs_periods = "2001_2020", 
-  vars = c("DD5", "DDsub0_at", "DDsub0_wt", "PPT_05", "PPT_06", "PPT_07", "PPT_08",
-           "PPT_09", "CMD", "PPT_at", "PPT_wt", "CMD_07", "SHM", "AHM", "NFFD", "PAS", 
-           "CMI", "Tmax_sm", "TD", "PPT_sm", "DD5_sp"))
+  vars = varsl)
 
 saveRDS(clim.bcv, file="data/spatial/clim.bcv.RData")
 plot(clim.bcv)
@@ -44,7 +48,8 @@ gc()
 my_rast <- rast(dem.bc) # use the DEM as a template raster
 vars = c("DD5", "DDsub0_at", "DDsub0_wt", "PPT_05", "PPT_06", "PPT_07", "PPT_08",
          "PPT_09", "CMD", "PPT_at", "PPT_wt", "CMD_07", "SHM", "AHM", "NFFD", "PAS", 
-         "CMI", "Tmax_sm", "TD", "PPT_sm", "DD5_sp")
+         "CMI", "Tmax_sm", "TD", "PPT_sm", "DD5_sp", "PPT_sp", "PPT_sm", 'Tmax_at', "Tmax_wt", "Tmax_sp", "Tmax_sm",
+         'Tmin_at', "Tmin_wt", "Tmin_sp", "Tmin_sm") 
 clim.bcr<-rasterize(clim.bcv, my_rast, field= vars) #set background=0 for all cells that are NAs 
 saveRDS(clim.bcr, file="data/spatial/clim.bcr.RData")
 #clim.bcr<-readRDS(file="data/spatial/clim.bcr.RData")
