@@ -4,18 +4,19 @@
 #you may not use this file except in compliance with the License.
 #You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
 #Unless required by applicable law or agreed to in writing, software
-#distributed under the License is distributed on an "AS IS" BASIS,
+#distributed under the License  is distributed on an "AS IS" BASIS,
 #WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #See the License for the specific language governing permissions and
 #limitations under the License.
 
 #libraries 
 library(tidyverse)
+require(data.table)
 
 #pull in climate data ----
-cache_clear()
-source("scripts/climr_getdata_plots.R") #ignore warnings
-
+# cache_clear()
+# source("scripts/climr_getdata_plots.R") #ignore warnings
+plot_dat <- fread("data/plot_dat_climr.csv")
 #merge with veg data---- 
 veg_dat<-BEC_data$veg
 all_dat<-left_join(veg_dat, plot_dat)#join with plot & climate info 
@@ -337,6 +338,7 @@ tree_dat_wzeros<-expand.grid(PlotNumber=unique(tree_dat$PlotNumber), Species=spp
 
 #bring back in climate data by plot 
 source("scripts/climr_getdata.R") #ignore warnings
+plot_dat <- fread("data/plot_dat_climr.csv")
 tree_dat_wzeros<-left_join(tree_dat_wzeros, plot_dat)
 #merge back in plot data (minus climate)
 names(tree_dat)
