@@ -56,12 +56,12 @@ clim_dat <- downscale(
 source("scripts/addVars.R")
 addVars(clim_dat)
 
-<<<<<<< HEAD
+
 #sanity check
 #merge back with plot data 
 plot_dat<-left_join(plot_dat, rename(clim_dat, PlotNumber=id))
 fwrite(plot_dat, "data/plot_dat_climr.csv")
-=======
+
 #check for NAs in climate data - where are they? 
 clim_dat2<-na.omit(clim_dat) 
 nas<-anti_join(clim_dat,clim_dat2) #31
@@ -85,7 +85,7 @@ save(clim_dat, plot_dat, file= 'data/clim_dat.plots.Rdata')
 
 
 #sanity check
->>>>>>> 819affeee6218bb84e308624a294dc7568351012
+
 ggplot(plot_dat, aes(x=Elevation, y=MAT))+
   geom_point()+
   geom_smooth(method='lm')+
