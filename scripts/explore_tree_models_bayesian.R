@@ -22,12 +22,14 @@ library(bhsdtr2) #hierarchical ordinal bayesian
 #load feasibility plus abundance dataset with climate data 
 load(file="data/feasibility_abundance_data.Rdata")
 #currently using CMI and Tave_sm because they load most heavily on PC1 and PC2 but can also just use PC axes 
+#also it appears that climate data is at the subzone (BGC) level, probably want to get this at SS level and/or put random intercept into the model 
 
 #set moist and nutrients as ordinal
 #feas.dat.sub$MoistureRegime_clean<-newfeas_ord<-ordered(feas.dat.sub$MoistureRegime_clean, levels = c(8,7,6,5,4,3,2,1,0))
 #feas.dat.sub$NutrientRegime_clean<-newfeas_ord<-ordered(feas.dat.sub$NutrientRegime_clean, levels = c("F", "E", "D", "C", "B", "A"))
 
 #create a unique variable for the 15 edatopic spaces  
+#potentially remove Fs and 8s (check with Will- Colin 12/20/24)
 feas.dat.sub$edatopex<-paste(feas.dat.sub$NutrientRegime_clean, feas.dat.sub$MoistureRegime_clean, sep="")
 feas.dat.sub<- mutate(feas.dat.sub, edatope=case_when(edatopex=="C3"|edatopex=="C4"~"C34",
                                                       edatopex=="C1"|edatopex=="C2"~"C12",
@@ -146,12 +148,41 @@ pp_check(Fd_postmod_flat)
 pred <- posterior_predict(Fd_postmod_flat)
 bayesplot::ppc_dens_overlay(y = log1p(Fdabund$TotalA), 
                             yrep = log1p(pred[1:10,]))
+flatpriors<-get_prior(Fd_postmod_flat)
+
+#prior-posterior plots 
+MODform<-bf(TotalA ~ Tave_sms + CMIs + (Tave_sms + CMIs||edatope),hu ~ Tave_sms + CMIs + (Tave_sms + CMIs||edatope))
+Fd_prioronly_mod_flat<- 
+  brm(MODform, cores=3,  prior=flatpriors, data=Fdabund, family = hurdle_lognormal(),
+      sample_prior = "only") 
+
+summary_prior<-summary(Fd_prioronly_mod)
+summary_prior<-summary_prior$fixed
+summary_prior$mod<-"prior"
+
+summary_post<-summary(Fd_postmod_inf)
+summary_post<-summary_post$fixed
+summary_post$mod<-"posterior"
+
+summary_all<-rbind(summary_post, summary_prior)
+summary_all$param<-row.names(summary_all)
+summary_all$paramx<- gsub("[^A-Za-z]+", "", summary_all$param)
+
+#plot posterior and prior model estimates 
+library(ggplot2)
+ggplot(summary_all, aes(y=Estimate, x=paramx, fill=mod, color=mod)) +
+  geom_pointrange(aes(ymin=Estimate-Est.Error, 
+                      ymax=Estimate+Est.Error))+ 
+  geom_jitter()+
+  xlab("Model parameter")+
+  scale_color_discrete(name="Model")+ scale_fill_discrete(name="Model")
 
 
 #set informed priors from prior model
 get_prior(Fd_postmod_flat)
 summary(Fd_priormod)
-
+#use mu estimates from prior model and sd estimates 
+#may want to increase the width of sd estimates 
 priors<- c(set_prior("normal(1.34, 0.19)", class = "Intercept"), 
           set_prior("normal(0.76, 0.55)", class = "Intercept", dpar='hu'),
           set_prior("normal(0.52, 0.10)", class = "b", coef = "Tave_sms"),
@@ -163,12 +194,20 @@ priors<- c(set_prior("normal(1.34, 0.19)", class = "Intercept"),
           set_prior("normal(0.48, 0.23)", class = "sd", group = "edatope", coef = "CMIs"),        
           set_prior("normal(2.10, 0.58)", class = "sd", group = "edatope", dpar='hu', coef = "Intercept"),  
           set_prior("normal(0.23, 0.17)", class = "sd", group = "edatope", dpar='hu', coef = "Tave_sms"),   
-          set_prior("normal(0.30, 0.22)", class = "sd", group = "edatope", dpar='hu', coef = "CMIs"))      
+          set_prior("normal(0.30, 0.22)", class = "sd", group = "edatope", dpar='hu', coef = "CMIs"), 
+          set_prior("normal(1.43,  0.04)", class="sigma"), 
+          #not sure what parameters these correspond with but filling in so not run as default... 
+          #set_prior("normal(0, 1)", class = "sd", lb=0),      
+          #set_prior("normal(0, 1)", class = "sd", lb=0), 
+          set_prior("normal(0, 1)", class = "sd", lb=0, group = "edatope"),      
+          set_prior("normal(0, 1)", class = "sd", lb=0, group = "edatope", dpar='hu'), 
+          set_prior("normal(0, 1)", class = "b"),      
+          set_prior("normal(0, 1)", class = "b",  dpar='hu' ))      
 
 #FIT MODEL again with expert informed priors
 Fd_postmod_inf<-brm(bf(TotalA ~ Tave_sms + CMIs + (Tave_sms + CMIs||edatope),hu ~ Tave_sms + CMIs + (Tave_sms + CMIs||edatope)),
                      data = Fdabund, prior=priors,
-                     family = hurdle_lognormal(),
+                     family = hurdle_lognormal(),sample_prior = TRUE,
                      chains = 3, iter = 2000, warmup = 1000)
 save(Fd_postmod_inf, file= "outputs/brms/Fd_postmod_inf.Rdata")
 get_prior(Fd_postmod_inf)
@@ -177,11 +216,45 @@ get_prior(Fd_postmod_inf)
 summary(Fd_postmod_inf)
 ranef(Fd_postmod_inf)
 pp_check(Fd_postmod_inf)
-pred <- posterior_predict(Fd_postmod_inf)
+pred <- posterior_predict()
 bayesplot::ppc_dens_overlay(y = log1p(Fdabund$TotalA), 
                             yrep = log1p(pred[1:10,]))
 #not much difference in pp_check compared to post-flat prior model :/ not sure if priors are actually getting set correctly or defaults still being used?.. 12/19/24
 #slightly overpredicting at lower abundances and underpredicting at higher abundances... how to update priors or sim data to address this? 
+
+#prior-posterior plots 
+MODform<-bf(TotalA ~ Tave_sms + CMIs + (Tave_sms + CMIs||edatope),hu ~ Tave_sms + CMIs + (Tave_sms + CMIs||edatope))
+Fd_prioronly_mod<- 
+  brm(MODform, cores=3, prior = priors,  data=Fdabund, family = hurdle_lognormal(),
+      sample_prior = "only") 
+
+summary_prior<-summary(Fd_prioronly_mod)
+summary_prior<-summary_prior$fixed
+summary_prior$mod<-"prior"
+
+summary_post<-summary(Fd_postmod_inf)
+summary_post<-summary_post$fixed
+summary_post$mod<-"posterior"
+
+summary_all<-rbind(summary_post, summary_prior)
+summary_all$param<-row.names(summary_all)
+summary_all$paramx<- gsub("[^A-Za-z]+", "", summary_all$param)
+
+#plot posterior and prior model estimates 
+library(ggplot2)
+ggplot(summary_all, aes(y=Estimate, x=param, fill=mod, color=mod)) +
+  geom_pointrange(aes(ymin=Estimate-Est.Error, 
+                      ymax=Estimate+Est.Error))+
+  xlab("Model parameter")+ 
+  scale_color_discrete(name="Model")+ scale_fill_discrete(name="Model")
+
+#ok priors are not capturing posteriors... what to do now?!
+plot(hypothesis(Fd_postmod_inf, "CMIs < 0"))
+plot(hypothesis(Fd_postmod_inf, "Tave_sms > 0"))
+plot(hypothesis(Fd_postmod_inf, "hu_CMIs > 0"))
+plot(hypothesis(Fd_postmod_inf, "hu_Tave_sms > 0"))
+plot(hypothesis(Fd_postmod_inf, "CMIs < 0",group='edatope', scope = 'ranef'))
+
 
 #plot conditional effects (mu+hu) 
 conditions <- expand_grid(edatope = unique(Fdabund$edatope)) |> 
