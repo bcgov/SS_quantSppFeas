@@ -4,7 +4,7 @@ Quantitative analyses on current species/site feasibility
 ---
 ## Readme 
 ---
-This repository holds data, scripts, model outputs and figures of preliminary analyses of species distribution and climatic suitability predictions for BC tree species at the BEC site-series level.
+This repository holds data, scripts, model outputs and figures of preliminary analyses of species abundance and climatic suitability predictions for BC tree species at the BEC site-series level.
 
 ## Features
 TBD
@@ -12,7 +12,7 @@ TBD
 ## Usage
 Current scripting workflow for species feasibility modeling is as follows 
 1. climr_getdata_plots.R- run climR downscale query for all BEC plot locations and merge with BEC plot data (sourced in script 2) 
-2. explore_veg_data.R- Compile/filter BEC plot data for tree species feasibility modeling- Save output 
+2. explore_veg_data.R- Compile/filter BEC plot data for tree species abundance modeling- Save output 
 3. explore_tree_models.R- train random forest and ordinal forest models with climate and tree species data from steps 1 & 2- save trained models (in development)
 4. climr_getdata_projections.R- run climR downscale query for 800m PRISM DECM for BC. Aggregate to 2km resolution. Save output 
 5. project_tree_models.R- predict from trained models (step 3) onto full BC climate surface by tree species and edatope. Save output (in development)
