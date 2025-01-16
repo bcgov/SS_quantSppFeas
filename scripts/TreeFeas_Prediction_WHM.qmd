@@ -1,6 +1,6 @@
 ---
 title: "Tree feasibility prediction with ML"
-author: "William H MacKenzie"
+author: "William H MacKenzie, Courtney Collins"
 format: pdf
 editor: visual
 ---
@@ -15,7 +15,6 @@ library(ordinalForest)
 require(tictoc)
 
 ```
-
 
 ```{r load and clean data}
 #load(file="data/tree_data_cleaned.Rdata") #cover data only 
@@ -105,8 +104,8 @@ save(RFord, file="outputs/ordinalForest/RFordmodel.Rdata")
 
 ```
 
-
 ### import rules on range of CMD which equates to aSMR
+
 ```{r}
 ###for each wetter rSMR, previous CMD is divided by 2
 rules <- read.csv("../data/aSMR_Rules_HalfStep_v12_30Dec2021.csv") %>% mutate(rSMR_rules = SMRLevel) %>% as.data.table
@@ -168,7 +167,6 @@ ggplot(data=subset(conf_mat_df,  predicted!=0 & true!=0), aes(y = predicted, x=t
 importancedf<-as.data.frame(RFord$varimp)
 ```
 
-
 ```{r ordinal forest classification}
 #train model on ALL data 
 #try fitting ordinal forest for one species & zonal (Hw)
@@ -228,4 +226,3 @@ accuracy <- sum(diag(conf_mat)) / sum(conf_mat) #acc = 0.71
 conf_mat
 
 ```
-
