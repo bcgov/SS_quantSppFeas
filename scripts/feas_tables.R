@@ -115,7 +115,7 @@ tree_dat<-left_join(tree_dat, ss)
 tree_dat<-mutate(tree_dat, ss_new= if_else(SiteUnitold==SiteUnit, 'N', 'Y'))
 
 #subset cols of interest 
-tree_dat_sub<-select(tree_dat, PlotNumber, Species, TotalA, SiteUnitold, ss_new,
+tree_dat_sub<-dplyr::select(tree_dat, PlotNumber, Species, TotalA, SiteUnitold, ss_new,
                      SiteUnit, bgc,  NutrientRegime_clean,MoistureRegime_clean, Latitude, Longitude)
 
 #create matching columns to feas tables
