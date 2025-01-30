@@ -19,8 +19,15 @@ library(remotes)
 library(NBZIMM) #zero infl gaussian
 library(bhsdtr2) #hierarchical ordinal bayesian  
 
+#This script does the following:
+#pulls in cleaned feasibility tables with BEC plot abundance and climate data created in feas_tables.R 
+#simulates random abundance data for each feasibility class based on pre-set cutoffs
+#runs lognormal hurdle model of climate on relative abundance to generate parameter estimates for model priors (zero and non-zero)
+
+
 #load feasibility plus abundance dataset with climate data 
 load(file="data/feasibility_abundance_data.Rdata")
+
 #currently using CMI and Tave_sm because they load most heavily on PC1 and PC2 but can also just use PC axes 
 #also it appears that climate data is at the subzone (BGC) level, probably want to get this at SS level and/or put random intercept into the model 
 
@@ -29,7 +36,6 @@ load(file="data/feasibility_abundance_data.Rdata")
 #feas.dat.sub$NutrientRegime_clean<-newfeas_ord<-ordered(feas.dat.sub$NutrientRegime_clean, levels = c("F", "E", "D", "C", "B", "A"))
 
 #create a unique variable for the 15 edatopic spaces  
-#potentially remove Fs and 8s (check with Will- Colin 12/20/24)
 feas.dat.sub$edatopex<-paste(feas.dat.sub$NutrientRegime_clean, feas.dat.sub$MoistureRegime_clean, sep="")
 feas.dat.sub<- mutate(feas.dat.sub, edatope=case_when(edatopex=="C3"|edatopex=="C4"~"C34",
                                                       edatopex=="C1"|edatopex=="C2"~"C12",
@@ -50,12 +56,14 @@ feas.dat.sub<- mutate(feas.dat.sub, edatope=case_when(edatopex=="C3"|edatopex=="
                                                       edatopex=="F5"|edatopex=="F6"~"F56", #F not in ByBEC
                                                       edatopex=="F3"~"F3", #F not in BYBEC
                                                       TRUE~NA))
+#potentially remove Fs and 8s (check with Will- Colin 12/20/24)
+feas.dat.sub<-subset(feas.dat.sub, edatope!="F56"& edatope!="F3"& edatope!="DE78")
 feas.dat.sub$edatope<-as.factor(feas.dat.sub$edatope)
-
+unique(feas.dat.sub$edatope)
 
 #build prior model----
 #remove plot data
-prior_df<-select(feas.dat.sub, -TotalA, -PlotNumber, -Latitude, -Longitude)%>%distinct(.)
+prior_df<-dplyr::select(feas.dat.sub, -TotalA, -PlotNumber, -Latitude, -Longitude)%>%distinct(.)
 prior_df$Tave_sms<-c(scale(prior_df$Tave_sm)) #use c() so doesn't change class type 
 prior_df$CMIs<-c(scale(prior_df$CMI))#use c() so doesn't change class type
 hist(prior_df$Tave_sms)
@@ -67,8 +75,8 @@ knitr::kable(group_by(prior_df, newfeas_ord)%>%summarise(counts=n()))
 # Define the ranges for each class
 #use proposed cutoffs from Mariotte et al. 2013a
 ranges <- list(
-  feas1 = c(12.01, 99),  #12% is dominance - high
-  feas2 = c(2, 12 ),  #subordinates - med
+  feas1 = c(12.01, 60),  #12% is dominance - high
+  feas2 = c(2, 12),  #subordinates - med
   feas3 = c(0.01, 1.99 ) #remaining non zero -low   
   #true 4s -i.e. trace could be 0-0.5 or something??
 )
@@ -86,16 +94,23 @@ sim_data <- data.frame(
 
 prior_df$sim_abund <- NA
 
+hist((sim_data$value))
+hist(feas.dat.sub$TotalA)
+feas.dat.sub1<-subset(feas.dat.sub, TotalA>0)
+hist(feas.dat.sub1$TotalA)
+
 # Assign simulated data values based on matching class labels
 for (feas in unique(prior_df$newfeas)) {
   # Find the corresponding simulated data for this class
   sim_values <- sim_data$value[sim_data$newfeas == feas]
     # Match the class rows in `existing_data` and assign the simulated values
   prior_df$sim_abund[prior_df$newfeas == feas] <- sim_values
-} #ignore error 
+}
+#ignore error 
 
 #put in zeroes for 4s
 prior_df<-mutate(prior_df, sim_abund= if_else(is.na(sim_abund), 0, sim_abund))
+hist(prior_df$sim_abund)
 
 #run for one spp (Fd)
 Fdfeas<-subset(prior_df, spp=="Fd")
@@ -104,7 +119,7 @@ str(Fdfeas)
 #FIT MODEL 
 #continuous response - hurdle lognormal 
 #brms 
-Fd_priormod<-brm(bf(sim_abund ~ Tave_sms + CMIs + (Tave_sms + CMIs||edatope),hu ~ Tave_sms + CMIs + (Tave_sms + CMIs||edatope)),
+Fd_priormod<-brm(bf(sim_abund ~ Tave_sms + CMIs + (Tave_sms + CMIs||edatope), hu ~ Tave_sms + CMIs + (Tave_sms + CMIs||edatope)),
   data = Fdfeas,
   family = hurdle_lognormal(),
   chains = 3, iter = 2000, warmup = 1000)
@@ -160,7 +175,7 @@ summary_prior<-summary(Fd_prioronly_mod)
 summary_prior<-summary_prior$fixed
 summary_prior$mod<-"prior"
 
-summary_post<-summary(Fd_postmod_inf)
+summary_post<-summary(Fd_postmod_expert)
 summary_post<-summary_post$fixed
 summary_post$mod<-"posterior"
 
@@ -183,19 +198,19 @@ get_prior(Fd_postmod_flat)
 summary(Fd_priormod)
 #use mu estimates from prior model and sd estimates 
 #may want to increase the width of sd estimates 
-priors<- c(set_prior("normal(1.34, 0.19)", class = "Intercept"), 
-          set_prior("normal(0.76, 0.55)", class = "Intercept", dpar='hu'),
-          set_prior("normal(0.52, 0.10)", class = "b", coef = "Tave_sms"),
-          set_prior("normal(-0.66, 0.24)", class = "b", coef = "CMIs"),
-          set_prior("normal(-1.81, 0.15)", class = "b", coef = "Tave_sms", dpar='hu'),
-          set_prior("normal(0.84, 0.18)", class = "b", coef = "CMIs", dpar='hu'),
-          set_prior("normal(0.47, 0.18)", class = "sd", group = "edatope", coef = "Intercept"), 
+priors<- c(set_prior("normal(1.33, 0.19)", class = "Intercept"), 
+          set_prior("normal(0.45, 0.62)", class = "Intercept", dpar='hu'),
+          set_prior("normal(0.56, 0.10)", class = "b", coef = "Tave_sms"),
+          set_prior("normal(-0.69, 0.23)", class = "b", coef = "CMIs"),
+          set_prior("normal(-1.85, 0.14)", class = "b", coef = "Tave_sms", dpar='hu'),
+          set_prior("normal(0.83, 0.18)", class = "b", coef = "CMIs", dpar='hu'),
+          set_prior("normal(0.45, 0.19)", class = "sd", group = "edatope", coef = "Intercept"), 
           set_prior("normal(0.14, 0.11)", class = "sd", group = "edatope", coef = "Tave_sms"),   
-          set_prior("normal(0.48, 0.23)", class = "sd", group = "edatope", coef = "CMIs"),        
-          set_prior("normal(2.10, 0.58)", class = "sd", group = "edatope", dpar='hu', coef = "Intercept"),  
-          set_prior("normal(0.23, 0.17)", class = "sd", group = "edatope", dpar='hu', coef = "Tave_sms"),   
-          set_prior("normal(0.30, 0.22)", class = "sd", group = "edatope", dpar='hu', coef = "CMIs"), 
-          set_prior("normal(1.43,  0.04)", class="sigma"), 
+          set_prior("normal(0.43, 0.24)", class = "sd", group = "edatope", coef = "CMIs"),        
+          set_prior("normal(2.16, 0.62)", class = "sd", group = "edatope", dpar='hu', coef = "Intercept"),  
+          set_prior("normal(0.20, 0.15)", class = "sd", group = "edatope", dpar='hu', coef = "Tave_sms"),   
+          set_prior("normal(0.32, 0.24)", class = "sd", group = "edatope", dpar='hu', coef = "CMIs"), 
+          set_prior("normal(1.41,  0.04)", class="sigma"), 
           #not sure what parameters these correspond with but filling in so not run as default... 
           #set_prior("normal(0, 1)", class = "sd", lb=0),      
           #set_prior("normal(0, 1)", class = "sd", lb=0), 
@@ -205,18 +220,18 @@ priors<- c(set_prior("normal(1.34, 0.19)", class = "Intercept"),
           set_prior("normal(0, 1)", class = "b",  dpar='hu' ))      
 
 #FIT MODEL again with expert informed priors
-Fd_postmod_inf<-brm(bf(TotalA ~ Tave_sms + CMIs + (Tave_sms + CMIs||edatope),hu ~ Tave_sms + CMIs + (Tave_sms + CMIs||edatope)),
+Fd_postmod_expert<-brm(bf(TotalA ~ Tave_sms + CMIs + (Tave_sms + CMIs||edatope),hu ~ Tave_sms + CMIs + (Tave_sms + CMIs||edatope)),
                      data = Fdabund, prior=priors,
                      family = hurdle_lognormal(),sample_prior = TRUE,
                      chains = 3, iter = 2000, warmup = 1000)
-save(Fd_postmod_inf, file= "outputs/brms/Fd_postmod_inf.Rdata")
-get_prior(Fd_postmod_inf)
+save(Fd_postmod_expert, file= "outputs/brms/Fd_postmod_expert.Rdata")
+get_prior(Fd_postmod_expert)
 
 #look at model output
-summary(Fd_postmod_inf)
-ranef(Fd_postmod_inf)
-pp_check(Fd_postmod_inf)
-pred <- posterior_predict()
+summary(Fd_postmod_expert)
+ranef(Fd_postmod_expert)
+pp_check(Fd_postmod_expert)
+pred <- posterior_predict(Fd_postmod_expert)
 bayesplot::ppc_dens_overlay(y = log1p(Fdabund$TotalA), 
                             yrep = log1p(pred[1:10,]))
 #not much difference in pp_check compared to post-flat prior model :/ not sure if priors are actually getting set correctly or defaults still being used?.. 12/19/24
@@ -232,7 +247,7 @@ summary_prior<-summary(Fd_prioronly_mod)
 summary_prior<-summary_prior$fixed
 summary_prior$mod<-"prior"
 
-summary_post<-summary(Fd_postmod_inf)
+summary_post<-summary(Fd_postmod_expert)
 summary_post<-summary_post$fixed
 summary_post$mod<-"posterior"
 
@@ -249,39 +264,77 @@ ggplot(summary_all, aes(y=Estimate, x=param, fill=mod, color=mod)) +
   scale_color_discrete(name="Model")+ scale_fill_discrete(name="Model")
 
 #ok priors are not capturing posteriors... what to do now?!
-plot(hypothesis(Fd_postmod_inf, "CMIs < 0"))
-plot(hypothesis(Fd_postmod_inf, "Tave_sms > 0"))
-plot(hypothesis(Fd_postmod_inf, "hu_CMIs > 0"))
-plot(hypothesis(Fd_postmod_inf, "hu_Tave_sms > 0"))
-plot(hypothesis(Fd_postmod_inf, "CMIs < 0",group='edatope', scope = 'ranef'))
+plot(hypothesis(Fd_postmod_expert, "CMIs < 0"))
+plot(hypothesis(Fd_postmod_expert, "Tave_sms > 0"))
+plot(hypothesis(Fd_postmod_expert, "hu_CMIs > 0"))
+plot(hypothesis(Fd_postmod_expert, "hu_Tave_sms > 0"))
+plot(hypothesis(Fd_postmod_expert, "CMIs < 0",group='edatope', scope = 'ranef'))
 
+plot(hypothesis(Fd_postmod_flat, "CMIs < 0"))
+plot(hypothesis(Fd_prioronly, "CMIs < 0"))
 
 #plot conditional effects (mu+hu) 
 conditions <- expand_grid(edatope = unique(Fdabund$edatope)) |> 
   mutate(cond__ = paste0(edatope))
-
-conditional_effects(Fd_postmod_inf, effects = "CMIs", conditions = conditions,
+#CMI
+df1<-conditional_effects(Fd_postmod_expert, effects = "CMIs", conditions = conditions,
                     re_formula = NULL, prob = 0.9)
-#compare to default priors -different!
-conditional_effects(Fd_postmod_flat, effects = "CMIs", conditions = conditions,
-                    re_formula = NULL, prob=0.9) 
+df1<-df1$CMIs
+df1$prior<-"expert"
 
-conditional_effects(Fd_postmod_inf, effects = "Tave_sms", conditions = conditions,
-                    re_formula = NULL) 
 #compare to default priors -different!
-conditional_effects(Fd_postmod_flat, effects = "Tave_sms", conditions = conditions,
+df2<-conditional_effects(Fd_postmod_flat, effects = "CMIs", conditions = conditions,
+                    re_formula = NULL, prob=0.9) 
+df2<-df2$CMIs
+df2$prior<-"flat"
+df<-rbind(df1, df2)
+
+ggplot(df, aes(x=CMIs, y=estimate__, fill=prior, color=prior))+
+         geom_line()+ 
+         facet_wrap(~factor(edatope, levels = c("AB0", "CO", "DE0", "AB12", "C12", "DE12", "AB34", "C34", "DE34", "AB56", "C56", "DE56", "AB7", "C7")))+
+         theme_bw()
+#Tave
+df3<-conditional_effects(Fd_postmod_expert, effects = "Tave_sms", conditions = conditions,
                     re_formula = NULL) 
+df3<-df3$Tave_sms
+df3$prior<-"expert"
+
+#compare to default priors -different!
+df4<-conditional_effects(Fd_postmod_flat, effects = "Tave_sms", conditions = conditions,
+                    re_formula = NULL) 
+df4<-df4$Tave_sms
+df4$prior<-"flat"
+
+df0<-rbind(df3, df4)
+
+dummy<-df0[1,]
+dummy2<-df0[1,]f
+dummy$edatope<- "DE0"
+dummy2$edatope<-"DE7"
+
+df0<-rbind(df0, dummy, dummy2)
+
+#back scale Temp
+#mean(Fdabund$Tave_sm)
+#sd(Fdabund$Tave_sm)
+df0$Tave_sm<-(df0$Tave_sms+12.92)*2.27
+
+ggplot(df0, aes(x=Tave_sm, y=estimate__, fill=prior, color=prior))+
+  geom_line()+ 
+  facet_wrap(~factor(edatope, levels = c("AB0", "C0", "DE0", "AB12", "C12", "DE12", "AB34", "C34", "DE34", "AB56", "C56", "DE56", "AB7", "C7", "DE7")), ncol=3)+
+               theme_bw() + ylab("plot rel. abundance")
+
 
 #need to extract predictions and then collapse back into ordinal categories 
 library(emmeans)
-epreds<-Fd_postmod_inf%>%
+epreds<-Fd_postmod_expert%>%
 emmeans(~ CMIs + Tave_sms + edatope, var = "CMIs",
         at = list(edatope=unique(Fdabund$edatope),
                   CMIs = seq(-1,3, 1)),
         epred = TRUE, re_formula = NULL, allow_new_levels = TRUE) %>%emmeans::
 
 
-#OTHER PACKAGE OPTIONS----
+#other package options----
 #ordinal package version
 #start with intercept only model 
 Fd_ord_int<-clm(newfeas_ord ~  1 , data=Fdfeas)
@@ -305,15 +358,6 @@ exp(coef(Fd_ordr)) #log odds scale
 ggpred_Fd_ordr<-data.frame(ggpredict(Fd_ordr, terms = c("Tave_sm_ [-2, -1, 0, 1, 2, 3]"), bias_correction = TRUE))
 colnames(ggpred_Fd_ordr)[c(1, 6)] = c("Tave_sm", "newfeas")
 
-ggpred_Fd_ordr %>%
-  mutate(newfeas = ordered(newfeas, rev(levels=rev(levels(newfeas))) %>%
-  ggplot( aes(x = Tave_sm, y = predicted, fill = newfeas)) +
-  geom_bar(position = "fill", stat = "identity")  + theme_minimal() + ggtitle("Probabilities of Fd Env. feas by avg.T sm")
-
-plot(Fdfeas$CMI_~Fdfeas$newfeas_ord)
-plot(Fdfeas$Tave_sm_~Fdfeas$newfeas_ord)
-
-hist(prior_df$PC2)
 
 
 #calculate ordinal response for plot data 
