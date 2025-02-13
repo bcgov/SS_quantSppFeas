@@ -13,7 +13,9 @@ library(vegan)
 library(ape)
 
 #load feas tables with climate data 
-load(file="data/feasibility_data.Rdata")
+load(file="data/feasibility_dataw_climate.Rdata")
+#remove NAs for ordination
+feas.dat.sub<-na.omit(feas.dat.sub)
 
 #select climate variables from BGC model
 climrVars = c("CMD_sm", "DDsub0_sp", "DD5_sp", "Eref_sm", "Eref_sp", "EXT", 
@@ -30,9 +32,9 @@ climdat<- select(feas.dat.sub, climrVars) %>%
 climpca<-  prcomp(climdat)
 
 # Print a summary of the PCA results
-summary(climpca)
+#summary(climpca)
 #biplot(climpca)
-scores(climpca)
+#scores(climpca)
 
 # Convert the PCA results to a tibble and add a column for observation names
 climpca_df <- as_tibble(climpca$x) %>% 
@@ -46,21 +48,24 @@ feas.dat.sub<-left_join(climpca_df, feas.dat.sub)
 
 #PCs in in vegan
 #climpca2 <- vegan::rda(climdat, scale=F) #already scaled above 
-#scores <- scores(climpca)
+#scores <- scores(climpca2)
 #biplot(climpca) 
-#eigenvals(climpca)
+#eigenvals(climpca2)
 
 #loading scores of climate params onto PCA axes 
 #climloads<-envfit(climpca, climdat, permutations = 999, strata = NULL)
 #climloads
 #scrs <- as.data.frame(scores(climloads, display = "vectors"))
 #scrs<-add_rownames(scrs, "clim")
+#write.csv(scrs, "ClimPCA_loadingscores.csv")
 
-##ggplot(scrs) +
-  #geom_point(mapping = aes(x = PC1, y = PC2)) +
-  #coord_fixed() + ## need aspect ratio of 1!
-  #geom_segment(data = scrs,
-  #             aes(x = 0, xend = PC1, y = 0, yend = PC2),
-  #             arrow = arrow(length = unit(0.25, "cm")), colour = "grey") +
-  #geom_text(data = scrs, aes(x = PC1, y = PC2, label = clim),
-  #          size = 3)
+#ggplot(scrs) +
+#  geom_point(mapping = aes(x = PC1, y = PC2)) +
+#  coord_fixed() + ## need aspect ratio of 1!
+#  geom_segment(data = scrs,
+#               aes(x = 0, xend = PC1, y = 0, yend = PC2),
+#               arrow = arrow(length = unit(0.25, "cm")), colour = "grey") +
+#  geom_text(data = scrs, aes(x = PC1, y = PC2, label = clim),
+#            size = 3)
+
+
