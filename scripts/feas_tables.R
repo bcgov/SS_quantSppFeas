@@ -10,52 +10,33 @@
 #limitations under the License.
 
 #This script does the following:
-#pulls in cleaned feasibility tables w/ climate data created from 0_DataPrep_OrdinalForests.Rmd in Tree Feasibility Prediction repr @whmacken 
-#filters BGCs further
-#runs PCA on climate vars and merges with feas values (sourced)
+#pulls in most recent feasibility tables (v 13_3) 
+#cleans naming
 #merges feas values with BC BEC plot data (tree abundance)
-#calculates and plots mean abundances by feas rating for top spp 
+#calculates and plots mean abundances by feas rating for top spp
+#pulls in plot level climate data (from climr_getdata_plots.R)
+#runs PCA on climate vars and merges back with feas & abundance values (sourced-climPCAs.R)
+#creates list of data for which we have BEC plot abundances but no feas ratings (BEC_missing_feas)- need to cross check by site series 
+#saves rds file for further quantitative validation/modeling (feas_abund_clim_data.Rdata)
 
+#libraries
 library(tidyverse)
 
-#load feasibility data with site & climate info---- 
-feas.dat <- readRDS("C:/Users/ccollins/OneDrive - Government of BC/CCISS/ccissv13_workingfiles/Feasibility_modelling/OrdinalForest_data.rds")
+#load feasibility data---- 
+feas.dat<-read.csv("C:/Users/ccollins/OneDrive - Government of BC/CCISS/ccissv13_latest_tool_materials/Feasibility_v13_3.csv")
+feas.dat<-subset(feas.dat, !is.na(newfeas))
 
-#filter out small BGCs not included in training/projections (from BGC projections repo- create training set.R)
-BGC_exclude<-c( "BWBScm"  ,"CMAun_OR",  "CMAwh",   "CWHxs",  "ESSFdcp", "ESSFdh1" ,"ESSFdh2"  ,"ESSFdh_WA","ESSFwh_MT","ESSFxcp", "ESSFxcw",  
-                "ESSFxh_WA", "ESSFxvw" ,  "ICHmc1a",  "ICHxwa"  ,  "IDFww"  ,   "IDFww1"   , "IDFww2"  ,  "IDFxx1"  ,  "MHun"  ,    "MHunp"  ,   "MHwh" ,    
-                "MHwhp"  ,   "MSdc2"  ,   "MSun")
+#filter out small BGCs not included in training/projections (from BGC projections repo- create training set.R)- TBD 2/12/25- waiting on updated BGC projections from Colin 
+#BGC_exclude<-c( "BWBScm"  ,"CMAun_OR",  "CMAwh",   "CWHxs",  "ESSFdcp", "ESSFdh1" ,"ESSFdh2"  ,"ESSFdh_WA","ESSFwh_MT","ESSFxcp", "ESSFxcw",  
+#                "ESSFxh_WA", "ESSFxvw" ,  "ICHmc1a",  "ICHxwa"  ,  "IDFww"  ,   "IDFww1"   , "IDFww2"  ,  "IDFxx1"  ,  "MHun"  ,    "MHunp"  ,   "MHwh" ,    
+#                "MHwhp"  ,   "MSdc2"  ,   "MSun")
 
-feas.dat<-subset(feas.dat, !(BGC %in% BGC_exclude))
-feas.dat<-na.omit(feas.dat)
-
-unique(feas.dat$BGC)#309-> 366 in projections, missing 57 subzones 
-unique(feas.dat$spp)
-
-##select climate variables from BGC model
-climrVars = c("CMD_sm", "DDsub0_sp", "DD5_sp", "Eref_sm", "Eref_sp", "EXT", 
-              "MWMT", "NFFD_sm", "NFFD_sp", "PAS", "PAS_sp", "SHM", "Tave_sm", 
-              "Tave_sp", "Tmax_sm", "Tmax_sp", "Tmin", "Tmin_at", "Tmin_sm", 
-              "Tmin_sp", "Tmin_wt", "CMI", "PPT_MJ", "PPT_JAS", "CMD.total")
-names(feas.dat)
-
-feas.dat<-mutate(feas.dat, CMD.total=CMD.def +CMD)
-varsl<-c(c("zone", "BGC", "SS_NoSpace","spp", "newfeas",  "fid", "WNA_DEM_4326_clipped" ,"xcoord", "ycoord") , climrVars)
-feas.dat.sub<-select(feas.dat, varsl)
-
-save(feas.dat.sub, file="data/feasibility_data.Rdata")
-
-#calculate PC axes for climate params----
-source("scripts/climPCAs.R")
-
-#save again
-save(feas.dat.sub, file="data/feasibility_data.Rdata")
+#feas.dat.sub<-subset(feas.dat, !(BGC %in% BGC_exclude))
 
 
 #merge feas & tree data---- 
 #deal with duplicates for coastal and interior spp 
-load(file="data/feasibility_data.Rdata")
-feas.dat.sub<-subset(feas.dat.sub, spp!="Plc"& spp!="Pli"& spp!="Fdc" & spp!="Fdi"& spp!="Pyc"& spp!="Pyi")
+feas.dat.sub<-subset(feas.dat, spp!="Plc"& spp!="Pli"& spp!="Fdc" & spp!="Fdi"& spp!="Pyc"& spp!="Pyi")
 
 #add full spp codes to feas df 
 feas.dat.subx<-mutate(feas.dat.sub, Species= case_when(spp=="Ba"~"ABIEAMA",
@@ -93,12 +74,8 @@ feas.dat.subx<-mutate(feas.dat.sub, Species= case_when(spp=="Ba"~"ABIEAMA",
                                                       spp=="Hm"~"TSUGMER")) 
 
 
-#remove climate data for now 
-#varsl<-c("zone", "BGC", "SS_NoSpace","spp", "Species", "newfeas",  "fid", "WNA_DEM_4326_clipped" ,"xcoord", "ycoord") 
-#feas.dat.subx<-select(feas.dat.subx, varsl)
-
 #take out the US and alberta stuff because it won't match plot data
-feas.dat.subx<-filter(feas.dat.subx, !grepl('_CA|_OR|_WA|_ID|_MT|_CA|_WY|_CO|_NV|UT|BSJP|abE|abN|abS|abE|abC|SBAP|SASbo|PPxh|MSd|MSx', SS_NoSpace))
+feas.dat.subx<-filter(feas.dat.subx, !grepl('_CA|_OR|_WA|_ID|_MT|_CA|_WY|_CO|_NV|UT|BSJP|abE|abN|abS|abE|abC|SBAP|SASbo|PPxh|MSd|MSx', ss_nospace))
 
 #load BC tree data 
 load(file="data/tree_data_cleaned_wzeros.Rdata")  
@@ -109,45 +86,32 @@ gc()
 
 #update site series naming plot data
 ss <- read.csv("C:/Users/ccollins/OneDrive - Government of BC/CCISS/ccissv13_workingfiles/Feasibility_modelling/All_BGC12DEC2024_SU.csv")
-ss<-mutate(ss, bgc= gsub(" ", "", bgc))
+ss<-mutate(ss, bgc= gsub(" ", "", bgc))%>%separate(SiteUnit, into = "zone", sep = " ", remove=F)%>%
+       mutate(zone2= case_when(grepl("ESSF", zone)~"ESSF",
+                                grepl("BWBS", zone)~"BWBS", TRUE~NA))%>%mutate(zone=if_else(!is.na(zone2), zone2, zone))%>%select(-zone2)
 tree_dat<-rename(tree_dat, SiteUnitold=SiteUnit)
 tree_dat<-left_join(tree_dat, ss)
 tree_dat<-mutate(tree_dat, ss_new= if_else(SiteUnitold==SiteUnit, 'N', 'Y'))
 
 #subset cols of interest 
 tree_dat_sub<-dplyr::select(tree_dat, PlotNumber, Species, TotalA, SiteUnitold, ss_new,
-                     SiteUnit, bgc,  NutrientRegime_clean,MoistureRegime_clean, Latitude, Longitude)
+                     SiteUnit, bgc, zone, NutrientRegime_clean,MoistureRegime_clean, Latitude, Longitude)
 
 #create matching columns to feas tables
-tree_dat_sub<-mutate(tree_dat_sub,  SS_NoSpace= gsub(" ", "", SiteUnit))%>%rename(BGC=bgc)
-#names(feas.dat.sub)
-#names(tree_dat_sub)
-#ssfeas<-unique(feas.dat.sub$SS_NoSpace)
-#sstree<-unique(tree_dat_sub$SS_NoSpace)
-#ssmatches<-subset(tree_dat_sub, SS_NoSpace %in% ssfeas)
-#ssmatches2<-subset(feas.dat.sub, SS_NoSpace %in% sstree)
+tree_dat_sub<-mutate(tree_dat_sub,  ss_nospace= gsub(" ", "", SiteUnit))
 
 #join with BC data
 feas.dat.suby<-left_join(feas.dat.subx, tree_dat_sub)  
 feas.dat.suby<-subset(feas.dat.suby,!is.na(TotalA))
 
 #create list with missing feas ratings for imputing
-feas.dat.subz<-left_join(tree_dat_sub, feas.dat.subx)  
+feas.dat.subz<-left_join(tree_dat_sub, feas.dat.subx)
+BEC_missing_feas<-subset(feas.dat.subz, is.na(newfeas))
 
 #set feas as ord factor
-feas.dat.suby$newfeas_ord<-ordered(feas.dat.suby$newfeas, levels = c(4,3, 2, 1))
+feas.dat.suby$newfeas_ord<-ordered(feas.dat.suby$newfeas, levels = c(5, 4,3, 2, 1))
 str(feas.dat.suby$newfeas_ord)
 knitr::kable(group_by(feas.dat.suby, newfeas_ord)%>%summarise(counts=n())) #4 is actually a 5 here (i.e. zero)
-
-#other plot data-right now not at SS level so can't merge with feas tables #### 12/2024
-#load US tree data 
-#load( file= )
-#names(feas.dat.sub)
-#cols<-names(feas.dat.sub)
-#all_US_dat<-select(all_US_dat)
-#all_US_dat<-subset(all_US_dat, select = names(all_US_dat) %in% cols) 
-
-#load AB tree data 
 
 #save feas plus plot data
 feas.dat.sub<-feas.dat.suby
@@ -157,9 +121,9 @@ save(feas.dat.sub, file="data/feasibility_abundance_data.Rdata")
 
 #plot by spp with plot data 
 #calculate average abundances by feas scores
-avgs<-group_by(feas.dat.sub, zone, BGC, SS_NoSpace, Species, spp, newfeas_ord)%>%summarise(mean_abund_ss=mean(TotalA, na.rm = T), sd_abund_ss=sd(TotalA, na.rm = T))%>%ungroup(.)%>%
-  group_by(BGC)%>% mutate(mean_abund_subzone=mean(mean_abund_ss, na.rm = T))%>% ungroup(.)%>%
-  group_by(zone)%>% mutate(mean_abund_zone=mean(mean_abund_subzone, na.rm = T))#4 is actually a 5 here (i.e. zero)
+avgs<-group_by(feas.dat.sub, zone, bgc, ss_nospace, Species, spp, newfeas_ord)%>%summarise(mean_abund_ss=mean(TotalA, na.rm = T), sd_abund_ss=sd(TotalA, na.rm = T))%>%ungroup(.)%>%
+  group_by(bgc)%>% mutate(mean_abund_subzone=mean(mean_abund_ss, na.rm = T))%>% ungroup(.)%>%
+  group_by(zone)%>% mutate(mean_abund_zone=mean(mean_abund_subzone, na.rm = T))
 avgs<-na.omit(avgs)
 
 #how many spp have >1 rating?
@@ -168,32 +132,32 @@ check<-subset(check, n_ratings>1 & !is.na(abund))
 check$spp
 
 #spp plots 
-#At- 1 vs 2 not clear in IDF
+#At- fine, some high 2s and 3s
 ggplot(subset(avgs, Species=="POPUTRE"), aes(x = newfeas_ord, y = log(mean_abund_ss+1), colour="blue", alpha=0.5))+
   geom_point(position=position_jitterdodge(dodge.width=0.9)) +
   geom_boxplot(fill="white", position=position_dodge(width=0.9), alpha=0.5) +
   facet_wrap( ~ zone) + theme_bw() + theme(legend.position='none') +ggtitle("At")
-#Ba- fine, rare
+#Ba- good, rare
 ggplot(subset(avgs, Species=="ABIEAMA"), aes(x = newfeas_ord, y = mean_abund_ss, colour="blue", alpha=0.5))+
   geom_point(position=position_jitterdodge(dodge.width=0.9)) +
   geom_boxplot(fill="white", position=position_dodge(width=0.9), alpha=0.5) +
   facet_wrap( ~ zone) + theme_bw() + theme(legend.position='none') +ggtitle("Ba")
-#Bl-looks good
+#Bl- CWH, IDF, MH look off 
 ggplot(subset(avgs, Species=="ABIELAS"), aes(x = newfeas_ord, y = mean_abund_ss, colour="blue", alpha=0.5))+
   geom_point(position=position_jitterdodge(dodge.width=0.9)) +
   geom_boxplot(fill="white", position=position_dodge(width=0.9), alpha=0.5) +
   facet_wrap( ~ zone) + theme_bw() + theme(legend.position='none')+ ggtitle("Bl")
-#Cw- looks good - 2 vs 3 not different in CWH
+#Cw- issues in IDF & MH
 ggplot(subset(avgs, Species=="THUJPLI"), aes(x = newfeas_ord, y = mean_abund_ss, colour="blue", alpha=0.5))+
   geom_point(position=position_jitterdodge(dodge.width=0.9)) +
   geom_boxplot(fill="white", position=position_dodge(width=0.9), alpha=0.5) +
   facet_wrap( ~ zone) + theme_bw() + theme(legend.position='none') +ggtitle("Cw")
-#Ep- looks good 
+#Ep- looks good, some high 2s and 3s 
 ggplot(subset(avgs, Species=="BETUPAP"), aes(x = newfeas_ord, y = mean_abund_ss, colour="blue", alpha=0.5))+
   geom_point(position=position_jitterdodge(dodge.width=0.9)) +
   geom_boxplot(fill="white", position=position_dodge(width=0.9), alpha=0.5) +
   facet_wrap( ~ zone) + theme_bw() + theme(legend.position='none')+ggtitle("Ep")
-#Fd - fine 
+#Fd - looks good 
 ggplot(subset(avgs, Species=="PSEUMEN"), aes(x = newfeas_ord, y = mean_abund_ss, colour="blue", alpha=0.5))+
   geom_point(position=position_jitterdodge(dodge.width=0.9)) +
   geom_boxplot(fill="white", position=position_dodge(width=0.9), alpha=0.5) +
@@ -203,58 +167,97 @@ ggplot(subset(avgs, Species=="TSUGMER"), aes(x = newfeas_ord, y = mean_abund_ss,
   geom_point(position=position_jitterdodge(dodge.width=0.9)) +
   geom_boxplot(fill="white", position=position_dodge(width=0.9), alpha=0.5) +
   facet_wrap( ~ zone) + theme_bw() + theme(legend.position='none') +ggtitle("Hm")
-#Hw- looks good - CWH 2 is higher than 1 
+#Hw- looks good  
 ggplot(subset(avgs, Species=="TSUGHET"), aes(x = newfeas_ord, y = mean_abund_ss, colour="blue", alpha=0.5))+
   geom_point(position=position_jitterdodge(dodge.width=0.9)) +
   geom_boxplot(fill="white", position=position_dodge(width=0.9), alpha=0.5) +
   facet_wrap( ~ zone) + theme_bw() + theme(legend.position='none') +ggtitle("Hw")
-#Lw-looks good 
+#Lw-looks good, rare 
 ggplot(subset(avgs, Species=="LARIOCC"), aes(x = newfeas_ord, y = mean_abund_ss, colour="blue", alpha=0.5))+
   geom_point(position=position_jitterdodge(dodge.width=0.9)) +
   geom_boxplot(fill="white", position=position_dodge(width=0.9), alpha=0.5) +
   facet_wrap( ~ zone) + theme_bw() + theme(legend.position='none') +ggtitle("Lw")
-#Pl- fine
+#Pl- good
 ggplot(subset(avgs, Species=="PINUCON"), aes(x = newfeas_ord, y = mean_abund_ss, alpha=0.5))+
   geom_point(position=position_jitterdodge(dodge.width=0.9)) +
   geom_boxplot(fill="white", position=position_dodge(width=0.9), alpha=0.5) +
   facet_wrap( ~ zone) + theme_bw() + theme(legend.position='none') +ggtitle("Pl")
-#Ss- looks good 
+#Se- fine, rare, E2 high in SBS
 ggplot(subset(avgs, Species=="PICEMAR"), aes(x = newfeas_ord, y = mean_abund_ss, colour="blue", alpha=0.5))+
   geom_point(position=position_jitterdodge(dodge.width=0.9)) +
   geom_boxplot(fill="white", position=position_dodge(width=0.9), alpha=0.5) +
   facet_wrap( ~ zone) + theme_bw() + theme(legend.position='none') +ggtitle("Se")
-#Ss- 2 higher than 1 in SBS
+#Ss- good
 ggplot(subset(avgs, Species=="PICESIT"), aes(x = newfeas_ord, y = mean_abund_ss, colour="blue", alpha=0.5))+
   geom_point(position=position_jitterdodge(dodge.width=0.9)) +
   geom_boxplot(fill="white", position=position_dodge(width=0.9), alpha=0.5) +
   facet_wrap( ~ zone) + theme_bw() + theme(legend.position='none') +ggtitle("Ss")
-#issues that PICENE all rated 4s 
-ggplot(subset(avgs, Species=="PICEENE"), aes(x = newfeas_ord, y = mean_abund_ss, colour="blue", alpha=0.5))+
-  geom_point(position=position_jitterdodge(dodge.width=0.9)) +
-  geom_boxplot(fill="white", position=position_dodge(width=0.9), alpha=0.5) +
-  facet_wrap( ~ zone) + theme_bw() + theme(legend.position='none') +ggtitle("Se")
-#Yc -
+#Yc - good, need more ratings in ESSF? 
 ggplot(subset(avgs, Species=="CALLNOO"), aes(x = newfeas_ord, y = mean_abund_ss, colour="blue", alpha=0.5))+
   geom_point(position=position_jitterdodge(dodge.width=0.9)) +
   geom_boxplot(fill="white", position=position_dodge(width=0.9), alpha=0.5) +
   facet_wrap( ~ zone) + theme_bw() + theme(legend.position='none') +ggtitle("Yc")
 
-#look at 4s with high abundances
-check<-subset(avgs, newfeas_ord=="4" & mean_abund_ss>5)
-unique(check$spp)#almost all spp 
+#look at E5s with non-zero abundances
+check<-subset(avgs, newfeas_ord=="5" & mean_abund_ss>0) #very few 
 
 
+#pull in climate data ----
+##select climate variables from BGC model
+climrVars = c("CMD_sm", "DDsub0_sp", "DD5_sp", "Eref_sm", "Eref_sp", "EXT", 
+              "MWMT", "NFFD_sm", "NFFD_sp", "PAS", "PAS_sp", "SHM", "Tave_sm", 
+              "Tave_sp", "Tmax_sm", "Tmax_sp", "Tmin", "Tmin_at", "Tmin_sm", 
+              "Tmin_sp", "Tmin_wt", "CMI", "PPT_MJ", "PPT_JAS", "CMD.total")
+names(feas.dat) 
 
+#from climr_getdata_plots.R
+load("data/clim_dat.plots.Rdata")
+clim_dat<-rename(clim_dat, PlotNumber=id)%>% select(c("PlotNumber", "PERIOD"), climrVars)
 
-##OLD###
-#filter feas table
-#take out the US and alberta stuff because it won't match plot data
-feas_tab<-filter(feas_tab, !grepl('_CA|_OR|_WA|_ID|_MT|_CA|_WY|_CO|_NV|UT|BSJP|abE|abN|abS|abE|abC|SBAP|SASbo|PPxh|MSd|MSx', bgc))
+feas.dat.clim<-left_join(feas.dat.sub, clim_dat)
+
+save(feas.dat.clim, file="data/feas_abund_clim_data.Rdata")
+
+#calculate PC axes for climate params----
+source("scripts/climPCAs.R")
+
+##MISC----
+
+#other plot data-right now not at SS level so can't merge with feas tables #### 12/2024
+#AB data 
+#load US tree data 
+#load( file= )
+#names(feas.dat.sub)
+#cols<-names(feas.dat.sub)
+#all_US_dat<-select(all_US_dat)
+#all_US_dat<-subset(all_US_dat, select = names(all_US_dat) %in% cols) 
+
+#pulling in from Will's Ordinal forest model script 
+feas.dat.clim <- readRDS("C:/Users/ccollins/OneDrive - Government of BC/CCISS/ccissv13_workingfiles/Feasibility_modelling/OrdinalForest_data.rds")
+feas.dat.clim<-na.omit(feas.dat.clim)
+
+feas.dat<-mutate(feas.dat, CMD.total=CMD.def +CMD)
+varsl<-c(c("zone", "bgc", "ss_nospace","spp", "newfeas",  "fid", "WNA_DEM_4326_clipped" ,"xcoord", "ycoord") , climrVars)
+feas.dat.sub<-select(feas.dat, varsl)
+
+#save again
+save(feas.dat.sub, file="data/feasibility_data.Rdata")
+
+names(feas.dat)
+names(feas.dat.clim)
+feas.dat.clim<-rename(feas.dat.clim, bgc=BGC, ss_nospace=SS_NoSpace)
+
+#remove previous feasibility cols 
+feas.dat.clim<-select(feas.dat.clim, -newfeas, -ESuit)
+feas.dat$feasible<-NULL
+
+#join feasibility (enviro suitability) w/ climate data 
+feas.dat<-left_join(feas.dat, feas.dat.clim)
+
 #subset to only top 16 spp
 spp_tab0<-tree_dat%>%  group_by(Species)%>%  summarise(nobs=n())
 spp_keep<-subset(spp_tab0, nobs>300)
 feas_tab<-subset(feas_tab, Species %in% spp_keep$Species)
 rm(spp_tab0)
-
 
 

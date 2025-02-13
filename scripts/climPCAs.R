@@ -13,9 +13,14 @@ library(vegan)
 library(ape)
 
 #load feas tables with climate data 
-load(file="data/feasibility_dataw_climate.Rdata")
+load(file="data/feas_abund_clim_data.Rdata")
+
 #remove NAs for ordination
-feas.dat.sub<-na.omit(feas.dat.sub)
+feas.dat.clim<-na.omit(feas.dat.clim)
+
+#removing large climate outlier plot in Mhmm1/101a
+feas.dat.clim<-subset(feas.dat.clim, PlotNumber!= "S95CT71")
+
 
 #select climate variables from BGC model
 climrVars = c("CMD_sm", "DDsub0_sp", "DD5_sp", "Eref_sm", "Eref_sp", "EXT", 
@@ -23,7 +28,7 @@ climrVars = c("CMD_sm", "DDsub0_sp", "DD5_sp", "Eref_sm", "Eref_sp", "EXT",
               "Tave_sp", "Tmax_sm", "Tmax_sp", "Tmin", "Tmin_at", "Tmin_sm", 
               "Tmin_sp", "Tmin_wt", "CMI", "PPT_MJ", "PPT_JAS", "CMD.total")
 
-climdat<- select(feas.dat.sub, climrVars) %>%
+climdat<- select(feas.dat.clim, climrVars) %>%
   #mutate(PASlog=log(PAS), PAS_splog=log(PAS_sp),PPT_MJlog=log(PPT_MJ), PPT_JASlog=log(PPT_JAS))%>% #log precip vars
   #select(-PAS, -PAS_sp, -PPT_MJ, -PPT_JAS) %>%
   scale(.) # standardize the data
@@ -41,9 +46,11 @@ climpca_df <- as_tibble(climpca$x) %>%
   mutate(observation = rownames(climpca$x))%>%select(PC1, PC2, PC3, observation)
 
 #merge PCs back with feas data---- 
-feas.dat.sub<-add_rownames(feas.dat.sub, "observation")
-feas.dat.sub<-left_join(climpca_df, feas.dat.sub)
+feas.dat.clim<-add_rownames(feas.dat.clim, "observation")
+feas.dat.clim<-left_join(climpca_df, feas.dat.clim)
 
+#save output
+save(feas.dat.clim, file="data/feas_abund_clim_data.Rdata")
 
 
 #PCs in in vegan
