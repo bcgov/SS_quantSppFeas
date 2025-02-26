@@ -43,7 +43,7 @@ climpca<-  prcomp(climdat)
 
 # Convert the PCA results to a tibble and add a column for observation names
 climpca_df <- as_tibble(climpca$x) %>% 
-  mutate(observation = rownames(climpca$x))%>%select(PC1, PC2, PC3, observation)
+  mutate(observation = rownames(.))%>%select(PC1, PC2, PC3, observation)
 
 #merge PCs back with feas data---- 
 feas.dat.clim<-add_rownames(feas.dat.clim, "observation")
