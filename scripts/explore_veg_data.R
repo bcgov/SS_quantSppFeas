@@ -13,19 +13,11 @@
 library(tidyverse)
 require(data.table)
 
-<<<<<<< HEAD
-#pull in climate data ----
-# cache_clear()
-# source("scripts/climr_getdata_plots.R") #ignore warnings
-plot_dat <- fread("data/plot_dat_climr.csv")
-#merge with veg data---- 
-=======
 #pull in climate & plot data ----
 load(file= 'data/clim_dat.plots.Rdata') #59314 obs
 
 #merge with veg & site data
 BEC_data<-readRDS("data/BEC_data.rds") #change this to OS #13 
->>>>>>> 819affeee6218bb84e308624a294dc7568351012
 veg_dat<-BEC_data$veg
 all_dat<-left_join(veg_dat, plot_dat)#join with plot & climate info 
 
@@ -39,8 +31,8 @@ rm(veg_dat)
 gc()
 
 #look at data across species/sites 
-#match with updated site series info from Will 5/16/24
-ss_cleaned<-read.csv('data/updated_siteseries.csv') #what defines why these plots are 'good'?? 
+#match with updated site series info from Will - awaiting final BEC v13 x plot numbers list
+ss_cleaned<-read.csv("C:/Users/ccollins/OneDrive - Government of BC/CCISS/ccissv13_workingfiles/Feasibility_modelling/All_BGC12DEC2024_SU.csv") 
 all_dat<-left_join(all_dat, ss_cleaned) 
 
 #remove anything not designated A BEC or BGC Unit from Will's list and that is not tree layer (TotalA)
@@ -65,9 +57,10 @@ tree_dat<-filter(tree_dat, Species %in% spp_keep)
 spp_tab<-tree_dat%>%
                 group_by(Species, SiteUnit, bgc,Site)%>%
                 summarise(nobs=n())
-max(spp_tab$nobs)#228
+max(spp_tab$nobs)#138
 min(spp_tab$nobs) #1
 mean(spp_tab$nobs)#7
+
 #filter anything with n obs <3 (need for random effect)
 remove<-subset(spp_tab, nobs<2)
 tree_dat<-anti_join(tree_dat, remove)
@@ -88,7 +81,7 @@ tree_dat<-dplyr::select(tree_dat, all_of(cols_keep))
 
 #remove info not using
 tree_dat<-dplyr::select(tree_dat, 
-    -Cover2, -FSRegionDistrict, -SV_FloodPlain, -ProvinceStateTerritory, 
+    -FSRegionDistrict, -SV_FloodPlain, -ProvinceStateTerritory, 
     -NtsMapSheet, -Flag, -SpeciesListComplete, -UpdatedFromCards, -Zone, -Ecosection)
 names(tree_dat)
 
@@ -201,9 +194,9 @@ hist(tree_dat$TotalA) #right skewed - beta dist?
 hist(log(tree_dat$TotalA)) #not bad... 
 
 #create a year column
-library(lubridate)
-tree_dat<-mutate(tree_dat,year=year(Date))
-names(tree_dat)
+#library(lubridate)
+#tree_dat<-mutate(tree_dat,year=year(Date))
+#names(tree_dat)
 
 #fix species names 
 tree_dat<-mutate(tree_dat, Species=if_else(Species=="PINUCON1"|Species=="PINUCON2","PINUCON", Species))%>%
@@ -220,6 +213,8 @@ nacols(nas) #not using any of these columns in the modeling so should be good
 
 #save cleaned tree data----
 save(tree_dat, file="data/tree_data_cleaned.Rdata")
+rm(all_dat)
+gc()
 
 #add zeroes to plots where species not observed---- 
 #load(file="data/tree_data_cleaned.Rdata")
@@ -378,7 +373,7 @@ ggplot(Sb, aes(y=TotalA, x=MAT, color=Site))+
 #Save top 16 species level datasets
 #save(Cw, Hw, Se, Fd, Bl, Pl, Ba, Hm, Yc, Ss, At, Ep, Py, Sw, Lw, Sb, file="data/tree_spp_data_cleaned.Rdata")
 
-<<<<<<< HEAD
+
 #add zeroes to plots where species not observed---- 
 rm(list = ls())
 load(file="data/tree_data_cleaned.Rdata")
@@ -498,8 +493,6 @@ tree_dat<-mutate(tree_dat, Species=if_else(Species=="PINUCON1"|Species=="PINUCON
 sort(unique(feas_tab$Species))
 sort(unique(tree_dat$Species))
 #have plot data but missing feasibility ratings on Tw (TAXUBRE-Western Yew) 
-=======
->>>>>>> 819affeee6218bb84e308624a294dc7568351012
 
 
 
