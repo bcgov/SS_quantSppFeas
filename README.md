@@ -10,13 +10,24 @@ This repository holds data, scripts, model outputs and figures of preliminary an
 TBD
 
 ## Usage
-Current scripting workflow for species feasibility modeling is as follows 
+Current scripting workflows for species feasibility modeling are as follows 
+Species suitability & abundance modeling- with Bayesian analysis 
+1. climr_getdata_plots.R- run climR downscale query for all BEC plot locations and merge with BEC plot abundance data  
+2. explore_veg_data.R- Compile/filter BEC plot data for tree species 
+3. feas_tables.R- pull in spp suitabiliy tables and merge with BEC data 
+4. climPCAs.R- run PCA on plot level climate parameters and merge back with feas/abundance data
+5. explore_tree_models_bayesian.R- Models BEC plot data using expert informed suitability ratings as Bayesian priors
+
+Species Abundance modeling- with random forest 
 1. climr_getdata_plots.R- run climR downscale query for all BEC plot locations and merge with BEC plot data (sourced in script 2) 
 2. explore_veg_data.R- Compile/filter BEC plot data for tree species abundance modeling- Save output 
 3. explore_tree_models.R- train random forest and ordinal forest models with climate and tree species data from steps 1 & 2- save trained models (in development)
 4. climr_getdata_projections.R- run climR downscale query for 800m PRISM DECM for BC. Aggregate to 2km resolution. Save output 
 5. project_tree_models.R- predict from trained models (step 3) onto full BC climate surface by tree species and edatope. Save output (in development)
 6. plot_model_projections.R- spatially map model predictions across BC for each tree species x edatope combination. 
+
+
+
 
 ## Requirements
 TBD
