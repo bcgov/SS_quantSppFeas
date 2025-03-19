@@ -263,7 +263,7 @@ sort(nacols(tree_dat_wzeros))
 #save
 save(tree_dat_wzeros, file="data/tree_data_cleaned_wzeros.Rdata") #too big to push- save on OS #13
 
-#EXTRA CODE-NOT CURRENTLY USING 
+
 #look at most measured spp----- 
 #Western red Cedar 
 Cw<-subset(tree_dat, Species=='THUJPLI')  #3639 obs
@@ -372,127 +372,6 @@ ggplot(Sb, aes(y=TotalA, x=MAT, color=Site))+
 
 #Save top 16 species level datasets
 #save(Cw, Hw, Se, Fd, Bl, Pl, Ba, Hm, Yc, Ss, At, Ep, Py, Sw, Lw, Sb, file="data/tree_spp_data_cleaned.Rdata")
-
-
-#add zeroes to plots where species not observed---- 
-rm(list = ls())
-load(file="data/tree_data_cleaned.Rdata")
-
-spp_tab0<-tree_dat%>%
-  group_by(Species)%>%
-  summarise(nobs=n())
-spp_keep<-spp_tab0$Species #16 
-
-#filter to 16
-tree_dat<-subset(tree_dat, Species %in% spp_keep)
-unique(tree_dat$Species)   
-
-tree_dat_wzeros<-expand.grid(PlotNumber=unique(tree_dat$PlotNumber), Species=spp_keep)
-
-#bring back in climate data by plot 
-source("scripts/climr_getdata.R") #ignore warnings
-plot_dat <- fread("data/plot_dat_climr.csv")
-tree_dat_wzeros<-left_join(tree_dat_wzeros, plot_dat)
-#merge back in plot data (minus climate)
-names(tree_dat)
-tree_dat<-select(tree_dat,  PlotNumber, Species, TotalA, ID, ProjectID, Date, SiteSurveyor,
-  PlotRepresenting, Location, Longitude, Latitude, LocationAccuracy, SubZone, SiteSeries, MoistureRegime,           
-  NutrientRegime, Elevation, SlopeGradient, Aspect, MesoSlopePosition, SubstrateDecWood, SubstrateBedRock,
-  SubstrateRocks, SubstrateMineralSoil, SubstrateOrganicMatter, SubstrateWater, SurficialMaterialSurf, SoilDrainage,           
-  HumusForm, StrataCoverTree, StrataCoverShrub, StrataCoverHerb, StrataCoverMoss, UserSiteUnit, GIS_BGC, GIS_BGC_VER,
-  StrataCoverTotal, Elevation_overlay, SiteUnit, Site, bgc, NutrientRegime_clean, MoistureRegime_clean, year)
-#pull out tree cover 
-plot_dat2<-select(tree_dat, -Species, -TotalA, -ID)%>%distinct(.)
-tree_dat_wzeros<-left_join(tree_dat_wzeros, plot_dat2) #check warnings about duplicated info 
-tree_dat_wzeros<-distinct(tree_dat_wzeros)
-#put tree cover back in 
-tree_dat2<-select(tree_dat, PlotNumber, Species, TotalA, ID)%>%distinct(.)
-tree_dat_wzeros<-left_join(tree_dat_wzeros, tree_dat2)%>%relocate(c(TotalA, ID), .after = Species)
-
-#now add in zeroes where total A is NA
-tree_dat_wzeros<-mutate(tree_dat_wzeros, TotalA=if_else(is.na(TotalA), 0, TotalA))
-
-hist(tree_dat_wzeros$TotalA) #very zero inflated 
-
-#save
-save(tree_dat_wzeros, file="data/tree_data_cleaned_wzeros.Rdata") #too big to push- save on OS #13
-
-#bring in feas tables---- 
-feas_tab<-read.csv("data/FeasibilityUpdates.csv")#downloaded from ByBEC 6/3/24
-feas_tab2<-read.csv("data/Feasibility_v12_15.csv")#most recent version from ccisr/data-raw/data_tables/
-
-#check that feasibilities same across versions----
-names(feas_tab)
-feas_tab2<-select(feas_tab2, bgc, ss_nospace, sppsplit, feasible, newfeas, mod)%>%rename(spp=sppsplit)
-diff<-anti_join(feas_tab, feas_tab2)
-diff2<-anti_join(feas_tab2, feas_tab)
-
-feas_tab<-anti_join(feas_tab, diff)
-feas_tab<-rbind(feas_tab, diff2)
-
-feas_tab2<-rename(feas_tab2, newfeas2=newfeas)
-allfeas<-full_join(feas_tab, feas_tab2)
-cor(allfeas$newfeas, allfeas$newfeas2) 
-
-allfeas<-mutate(allfeas, check= if_else(newfeas2==newfeas, T, F)) #only 2 different
-#CWHms1 CWHms1/03 Ba 3 3 SAS-HAK 2 FALSE
-#CWHms1 CWHms1/03 Ba 3 2 SAS-HAK 3 FALSE
-rm(allfeas)
-rm(diff)
-rm(diff2)
-
-#update species naming in feas tables----
-#check that these are the same 
-unique(sort(feas_tab2$spp))
-unique(sort(feas_tab$spp))
-
-feas_tab2<-mutate(feas_tab2, Species= case_when(spp=="Ba"~"ABIEAMA",
-                                              spp=="Ra" ~"ARBUMEN",
-                                              spp=="Bg"~"ABIEGRA", 
-                                              spp=="Bl"~"ABIELAS", 
-                                              spp=="Mb"~"ACERMAC", 
-                                              spp=="Dr"~"ALNURUB",
-                                              spp=="Ra"~"ARBUMEN",  
-                                              spp=="Ep"~"BETUPAP", 
-                                              spp=="Yc"~"CALLNOO", 
-                                              spp=="Lw"~"LARIOCC",  
-                                              spp=="Se"~"PICEENE",
-                                              spp=="Sw"~"PICEGLA",
-                                              spp=="Sb"~"PICEMAR",
-                                              spp=="Ss"~"PICESIT",
-                                              spp=="Sxl"~"PICEXLU",
-                                              spp=="Pa"~"PINUALB",
-                                              spp=="Pl"~"PINUCON",
-                                              spp=="Plc"~"PINUCON", #coastal
-                                              spp=="Pli"~"PINUCON", #interior
-                                              spp=="Pyc"~"PINUPON",
-                                              spp=="Pyi"~"PINUPON",
-                                              spp=="Pw"~"PINUMON",
-                                              spp=="Acb"~"POPUBAL",
-                                              spp=="At"~"POPUTRE",
-                                              spp=="Act"~"POPUTRI",
-                                              spp=="Fd"~"PSEUMEN", 
-                                              spp=="Fdi"~"PSEUMEN", #interior
-                                              spp=="Fdc"~"PSEUMEN", #coastal
-                                              spp=="Tw"~ "TAXUBRE",
-                                              spp=="Cw"~ "THUJPLI",
-                                              spp=="Hw"~ "TSUGHET",
-                                              spp=="Hm"~"TSUGMER")) 
-#rename to remove duplicates
-rm(feas_tab)
-feas_tab<-feas_tab2
-rm(feas_tab2)
-feas_tab<-rename(feas_tab, newfeas=newfeas2)
-
-#read in plot data 
-load(file="data/tree_data_cleaned.Rdata")
-
-tree_dat<-mutate(tree_dat, Species=if_else(Species=="PINUCON1"|Species=="PINUCON2","PINUCON", Species))%>%
-  mutate(Species=if_else(Species=="PSEUMEN1"|Species=="PSEUMEN2","PSEUMEN", Species))
-
-sort(unique(feas_tab$Species))
-sort(unique(tree_dat$Species))
-#have plot data but missing feasibility ratings on Tw (TAXUBRE-Western Yew) 
 
 
 
