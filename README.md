@@ -1,6 +1,6 @@
 # SS_quantSppFeas
 ---
-Quantitative analyses on current historical tree species environmental suitability
+Quantitative analyses on current historical tree species environmental suitability (formerly called feasibility)
 
 ## Readme 
 This repository holds data, scripts, model outputs and figures of preliminary analyses of species abundance and climatic suitability predictions for BC tree species at the BEC site-series level.
