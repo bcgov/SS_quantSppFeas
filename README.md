@@ -1,6 +1,5 @@
 # SS_quantSppFeas
-Quantitative analyses on current species/site feasibility
-
+Quantitative analyses on current historical tree species environmental suitability
 ---
 ## Readme 
 ---
