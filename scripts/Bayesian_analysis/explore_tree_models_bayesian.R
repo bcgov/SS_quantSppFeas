@@ -9,14 +9,20 @@
 #See the License for the specific language governing permissions and
 #limitations under the License.
 
-
 #This script does the following:
-#pulls in cleaned feasibility tables with BEC plot abundance and climate data created in feas_tables.R 
+#pulls in cleaned feasibility tables with BEC plot abundance and climate data (created in feas_tables.R) 
 #simulates random abundance data for each feasibility class based on pre-set cutoffs
-#runs lognormal hurdle model of climate on relative abundance to generate parameter estimates for model priors (zero and non-zero)
+#runs gaussian & skewnormal regressions of climate on relative abundance to generate parameter
+#estimates for model priors (zero and non-zero)
+#runs posterior models on plot relative abundance with 1) flat (uninformed/default) and 
+# 2) expert derived priors from feasibility ratings as estimated by the prior model
+#compares posteriors from flat and expert informed models by BGC 
+
+#currently this workflow is only run on Fd but can be repeated for multiple species 
 
 #outstanding issues: 
-#not currently accounting for ordinal nature of edatopic grid in the hierarchical model (L42)
+#not currently accounting for ordinal nature of edatopic grid in the hierarchical model 
+#model R2 values are low 
 
 #load libs and data---- 
 library(brms) 
@@ -63,13 +69,12 @@ unique(feas.dat.clim$edatope)
 #feas.dat.clim$NutrientRegime_clean<-ordered(feas.dat.clim$NutrientRegime_clean, levels = c("F", "E", "D", "C", "B", "A"))
 
 #build prior model----
-
 #simulate cover data with decreasing density function
 
 simulate_data <- function(min_val, max_val, n) {
   # Create a decreasing probability density
   density_fn <- function(x) {
-    1 / (x^(1.5))  # Decreasing power law function (adjust exponent to control steepness)
+    1 / (x^(1))  # Decreasing power law function (adjust exponent to control steepness)
   }
   # Normalize the density to use as probabilities
   x_vals <- seq(min_val, max_val, length.out = 1000)
@@ -85,7 +90,7 @@ simulate_data <- function(min_val, max_val, n) {
 #how many ratings within each class? 
 knitr::kable(group_by(feas.dat.clim, newfeas_ord)%>%summarise(counts=n())) 
 
-# Define the ranges for each class- use proposed cutoffs from Mariotte et al. 2013a
+# Define the ranges for each class- use proposed cutoffs from Mariotte et al. 2014 (New Phyt) and 
 # Simulate random data for each class within the given ranges 
 #n from kable 
 feas4_data <- simulate_data(0.01, 0.5, 18)
@@ -102,7 +107,8 @@ sim_data <- data.frame(
 feas5_data<-data.frame(num = c(1 : 28), value=0, newfeas= 5)
 feas5_data$num<-NULL
 sim_data<- rbind(sim_data, feas5_data)
-  
+hist(sim_data$value)  
+
 #create new df to assign simulated data 
 prior_df<-feas.dat.clim
 prior_df$sim_abund<-NA
@@ -124,19 +130,14 @@ hist(prior_df$TotalA)
 plot(prior_df$newfeas_ord, prior_df$sim_abund) 
 
 
-#run for one spp (Fd)
+#run for one spp (Fd)----
 Fdfeas<-subset(prior_df, spp=="Fd")
 str(Fdfeas)
 
 #FIT MODEL 
-#using Tave_sm & CMI because they load onto climate PC axis 1 and 2 respectively (can swap for axis scores themselves)
-#also highly correlated with MWMT and CMD- key predictors for Fd - Griesbauer et al 2019
-Fdfeas$Tave_sms<-c(scale(Fdfeas$Tave_sm)) #use c() so doesn't change class type
-Fdfeas$CMIs<-c(scale(Fdfeas$CMI))#use c() so doesn't change class type
-Fdfeas$PAS<-c(scale(Fdfeas$CMI))#use c() so doesn't change class type
 
 #model predictors 
-#CMI & Tave-> plot level climate- affect presence and abundance
+#PC1, PC2, PC3-> plot level climate PC axes- affect presence and abundance
 #zone -> regional climate - affect presence and abundance
 #subzone (bgc)-> local (subregional) climate- likely co-varies with edatope and plot level climate so currently not in model
 #edatope -> site conditions- affect abundance only & interact with plot level climate 
@@ -146,14 +147,10 @@ plot(as.factor(Fdfeas$newfeas), Fdfeas$sim_abund)
 #sqrt transform response
 Fdfeas$sim_abund_sqrt<-sqrt(Fdfeas$sim_abund)
 hist(Fdfeas$sim_abund_sqrt)
-#transform response from 0-1 for beta dist
-Fdfeas$sim_abund_beta<-Fdfeas$sim_abund/100
-hist(Fdfeas$sim_abund_beta)
 
 #brms 
 #continuous response - 
 Fd_priormod<-brm(bf(sim_abund_sqrt~ PC1 + PC2 + PC3 + zone + (PC1 + PC2 + PC3||edatope)) , 
-                    #hu ~  CMIs + Tave_sms + zone),
   data = Fdfeas,
   family = skew_normal(),
   chains = 2, iter = 5000, warmup = 2000, 
@@ -165,8 +162,8 @@ summary(Fd_priormod)
 ranef(Fd_priormod)
 pp_check(Fd_priormod)
 pred <- posterior_predict(Fd_priormod)
-bayesplot::ppc_dens_overlay(y = log1p(Fdfeas$sim_abund), 
-                            yrep = log1p(pred[1:10,]))
+bayesplot::ppc_dens_overlay(y = log(Fdfeas$sim_abund), 
+                            yrep = log(pred[1:10,]))
 bayes_R2(Fd_priormod)
 
 #plot conditional effects (mu+hu) 
