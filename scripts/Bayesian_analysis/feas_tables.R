@@ -183,7 +183,8 @@ ggplot(subset(avgs, spp=="Ep"), aes(x = newfeas_ord, y = mean_abund_ss,  alpha=0
 ggplot(subset(avgs, spp=="Fd"), aes(x = newfeas_ord, y = mean_abund_ss,  alpha=0.5))+
   geom_point(position=position_jitterdodge(dodge.width=0.9)) +
   geom_boxplot(fill="white", position=position_dodge(width=0.9), alpha=0.5) +
-  facet_wrap( ~ zone) + theme_bw() + theme(legend.position='none') +ggtitle("Fd")
+  facet_wrap( ~ zone) + theme_bw() + theme(legend.position='none') +ggtitle("Fd")+
+  xlab("Environmental Suitability") + ylab("Relative abundance (% cover)") + xlab("Environmental Suitability")
 #Hm- looks ok- some high 2s and 3s in CWH
 ggplot(subset(avgs, spp=="Hm"), aes(x = newfeas_ord, y = mean_abund_ss,  alpha=0.5))+
   geom_point(position=position_jitterdodge(dodge.width=0.9)) +
