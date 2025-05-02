@@ -26,14 +26,14 @@
 
 #load libs and data---- 
 library(brms) 
-library(ordinal)
+#library(ordinal)
 library(lme4)
-library(lmerTest)
+#library(lmerTest)
 library(glmmTMB)
 library(tidyverse)
 library(remotes)
-library(NBZIMM) #zero infl gaussian
-library(bhsdtr2) #hierarchical ordinal bayesian  
+#library(NBZIMM) #zero infl gaussian
+#library(bhsdtr2) #hierarchical ordinal bayesian  
 
 #load feasibility plus abundance dataset with climate data 
 load(file="data/feas_abund_clim_data.Rdata")
