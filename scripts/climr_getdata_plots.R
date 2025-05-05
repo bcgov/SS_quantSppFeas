@@ -60,7 +60,7 @@ addVars(clim_dat)
 #sanity check
 #merge back with plot data 
 plot_dat<-left_join(plot_dat, rename(clim_dat, PlotNumber=id))
-fwrite(plot_dat, "data/plot_dat_climr.csv")
+#fwrite(plot_dat, "data/plot_dat_climr.csv")
 
 #check for NAs in climate data - where are they? 
 clim_dat2<-na.omit(clim_dat) 
@@ -94,13 +94,6 @@ ggplot(plot_dat, aes(x=Elevation, y=MAT))+
 #looks good, MAT does in fact decline with elevation
 
 ggplot(plot_dat, aes(x=Elevation, y=PPT))+
-  geom_point()+
-  geom_smooth()+
-  #ylim(-10, 10) + 
-  xlim(0,4000) #git rid of outliers 
-#precip more interesting - is this picking up snow??
-
-ggplot(plot_dat, aes(x=Elevation, y=CMD))+
   geom_point()+
   geom_smooth()+
   #ylim(-10, 10) + 

@@ -32,7 +32,7 @@ gc()
 
 #look at data across species/sites 
 #match with updated site series info from Will - awaiting final BEC v13 x plot numbers list
-ss_cleaned<-read.csv("C:/Users/ccollins/OneDrive - Government of BC/CCISS/ccissv13_workingfiles/Feasibility_modelling/All_BGC12DEC2024_SU.csv") 
+ss_cleaned<-read.csv("data/All_BGC12DEC2024_SU.csv") 
 all_dat<-left_join(all_dat, ss_cleaned) 
 
 #remove anything not designated A BEC or BGC Unit from Will's list and that is not tree layer (TotalA)

@@ -79,7 +79,7 @@ tree_dat_sub<-mutate(tree_dat_sub, spp= case_when(Species=="ABIEAMA" ~ "Ba",
 
 
 #update site series naming in plot data
-#ss <- read.csv("C:/Users/ccollins/OneDrive - Government of BC/CCISS/ccissv13_workingfiles/Feasibility_modelling/All_BGC12DEC2024_SU.csv") #need to update to BEC 13 list when avaialable 
+#ss <- read.csv("data/All_BGC12DEC2024_SU.csv") #need to update to BEC 13 list when avaialable 
 #ss<-mutate(ss, bgc= gsub(" ", "", bgc))%>%separate(SiteUnit, into = "zone", sep = " ", remove=F)%>%
 #       mutate(zone2= case_when(grepl("ESSF", zone)~"ESSF",
 #                                grepl("BWBS", zone)~"BWBS",
@@ -286,31 +286,31 @@ source("scripts/climPCAs.R")
 #all_US_dat<-subset(all_US_dat, select = names(all_US_dat) %in% cols) 
 
 #pulling in from Will's Ordinal forest model script 
-feas.dat.clim <- readRDS("C:/Users/ccollins/OneDrive - Government of BC/CCISS/ccissv13_workingfiles/Feasibility_modelling/OrdinalForest_data.rds")
-feas.dat.clim<-na.omit(feas.dat.clim)
+#feas.dat.clim <- readRDS("C:/Users/ccollins/OneDrive - Government of BC/CCISS/ccissv13_workingfiles/Feasibility_modelling/OrdinalForest_data.rds")
+#feas.dat.clim<-na.omit(feas.dat.clim)
 
-feas.dat<-mutate(feas.dat, CMD.total=CMD.def +CMD)
-varsl<-c(c("zone", "bgc", "ss_nospace","spp", "newfeas",  "fid", "WNA_DEM_4326_clipped" ,"xcoord", "ycoord") , climrVars)
-feas.dat.sub<-select(feas.dat, varsl)
+#feas.dat<-mutate(feas.dat, CMD.total=CMD.def +CMD)
+#varsl<-c(c("zone", "bgc", "ss_nospace","spp", "newfeas",  "fid", "WNA_DEM_4326_clipped" ,"xcoord", "ycoord") , climrVars)
+#feas.dat.sub<-select(feas.dat, varsl)
 
 #save again
-save(feas.dat.sub, file="data/feasibility_data.Rdata")
+#save(feas.dat.sub, file="data/feasibility_data.Rdata")
 
-names(feas.dat)
-names(feas.dat.clim)
-feas.dat.clim<-rename(feas.dat.clim, bgc=BGC, ss_nospace=SS_NoSpace)
+#names(feas.dat)
+#names(feas.dat.clim)
+#feas.dat.clim<-rename(feas.dat.clim, bgc=BGC, ss_nospace=SS_NoSpace)
 
 #remove previous feasibility cols 
-feas.dat.clim<-select(feas.dat.clim, -newfeas, -ESuit)
-feas.dat$feasible<-NULL
+#feas.dat.clim<-select(feas.dat.clim, -newfeas, -ESuit)
+#feas.dat$feasible<-NULL
 
 #join feasibility (enviro suitability) w/ climate data 
-feas.dat<-left_join(feas.dat, feas.dat.clim)
+#feas.dat<-left_join(feas.dat, feas.dat.clim)
 
 #subset to only top 16 spp
-spp_tab0<-tree_dat%>%  group_by(Species)%>%  summarise(nobs=n())
-spp_keep<-subset(spp_tab0, nobs>300)
-feas_tab<-subset(feas_tab, Species %in% spp_keep$Species)
-rm(spp_tab0)
+#spp_tab0<-tree_dat%>%  group_by(Species)%>%  summarise(nobs=n())
+#spp_keep<-subset(spp_tab0, nobs>300)
+#feas_tab<-subset(feas_tab, Species %in% spp_keep$Species)
+#rm(spp_tab0)
 
 
