@@ -29,7 +29,7 @@ library(brms)
 #library(ordinal)
 library(lme4)
 #library(lmerTest)
-library(glmmTMB)
+#library(glmmTMB)
 library(tidyverse)
 library(remotes)
 #library(NBZIMM) #zero infl gaussian
@@ -93,10 +93,10 @@ knitr::kable(group_by(feas.dat.clim, newfeas_ord)%>%summarise(counts=n()))
 # Define the ranges for each class- use proposed cutoffs from Mariotte et al. 2014 (New Phyt) and 
 # Simulate random data for each class within the given ranges 
 #n from kable 
-feas4_data <- simulate_data(0.01, 0.5, 18)
-feas3_data <- simulate_data(0.51, 5, 1954)
-feas2_data <- simulate_data(5.01, 12, 6752)
-feas1_data <- simulate_data(12.01, 100,10262)
+feas4_data <- simulate_data(0.01, 0.5, 24)
+feas3_data <- simulate_data(0.51, 5, 2309)
+feas2_data <- simulate_data(5.01, 12, 7364)
+feas1_data <- simulate_data(12.01, 100,10996)
 
 # Combine into one data frame
 sim_data <- data.frame(
@@ -104,7 +104,7 @@ sim_data <- data.frame(
   newfeas = rep(c("1", "2", "3", "4"), 
               times = c(length(feas1_data),length(feas2_data), length(feas3_data), length(feas4_data))))
 
-feas5_data<-data.frame(num = c(1 : 28), value=0, newfeas= 5)
+feas5_data<-data.frame(num = c(1 : 30), value=0, newfeas= 5)
 feas5_data$num<-NULL
 sim_data<- rbind(sim_data, feas5_data)
 hist(sim_data$value)  
@@ -130,7 +130,7 @@ hist(prior_df$TotalA)
 plot(prior_df$newfeas_ord, prior_df$sim_abund) 
 
 
-#run for one spp (Fd)----
+#run for Fd----
 Fdfeas<-subset(prior_df, spp=="Fd")
 str(Fdfeas)
 
@@ -161,6 +161,8 @@ save(Fd_priormod, file= "outputs/brms/Fd_priormod_skew.Rdata")
 summary(Fd_priormod)
 ranef(Fd_priormod)
 pp_check(Fd_priormod)
+pp_check(Fd_priormod, type = "stat_2d")
+
 pred <- posterior_predict(Fd_priormod)
 bayesplot::ppc_dens_overlay(y = log(Fdfeas$sim_abund), 
                             yrep = log(pred[1:10,]))
@@ -179,7 +181,7 @@ conditional_effects(Fd_priormod, effects = "PC2", conditions = conditions,
 conditional_effects(Fd_priormod, effects = "PC3", conditions = conditions,
                     re_formula = NULL) 
 
-#posterior model---- 
+#posterior model
 #look at data 
 hist(feas.dat.clim$TotalA)
 plot(feas.dat.clim$newfeas_ord, feas.dat.clim$TotalA) 
@@ -366,6 +368,250 @@ emmeans(~ PC1 + PC2 + PC3 + edatope, var = "PC3",
         at = list(edatope=unique(Fdfeas$edatope),
                   PC3 = seq(-1,3, 1)),
         epred = TRUE, re_formula = NULL, allow_new_levels = TRUE) 
+
+
+
+#run for Cw----
+Cwfeas<-subset(prior_df, spp=="Cw")
+str(Cwfeas)
+
+#FIT MODEL 
+
+#model predictors 
+#PC1, PC2, PC3-> plot level climate PC axes- affect presence and abundance
+#zone -> regional climate - affect presence and abundance
+#subzone (bgc)-> local (subregional) climate- likely co-varies with edatope and plot level climate so currently not in model
+#edatope -> site conditions- affect abundance only & interact with plot level climate 
+
+hist(Cwfeas$sim_abund)
+plot(as.factor(Cwfeas$newfeas), Cwfeas$sim_abund) 
+#add 4s -> convert 5 to 4 for CWHvh3/103.2
+Cwfeas<-mutate(Cwfeas, newfeas=if_else(newfeas==5, 4, newfeas))
+
+#sqrt transform response
+Cwfeas$sim_abund_sqrt<-sqrt(Cwfeas$sim_abund)
+hist(Cwfeas$sim_abund_sqrt)
+
+#brms 
+#continuous response - 
+Cw_priormod<-brm(bf(sim_abund_sqrt~ PC1 + PC2 + PC3 + zone + (PC1 + PC2 + PC3||edatope)) , 
+                 data = Cwfeas,
+                 family = skew_normal(),
+                 chains = 2, iter = 5000, warmup = 2000, 
+                 control = list(adapt_delta = 0.9))
+save(Cw_priormod, file= "outputs/brms/Cw_priormod_skew.Rdata")
+
+#look at model output
+summary(Cw_priormod)
+ranef(Cw_priormod)
+pp_check(Cw_priormod)
+pred <- posterior_predict(Cw_priormod)
+bayesplot::ppc_dens_overlay(y = log(Cwfeas$sim_abund), 
+                            yrep = log(pred[1:10,]))
+bayes_R2(Cw_priormod)
+
+#plot conditional effects (mu+hu) 
+conditions <- expand_grid(edatope = unique(Cwfeas$edatope)) |> 
+  mutate(cond__ = paste0(edatope))
+
+conditional_effects(Cw_priormod, effects = "PC1", conditions = conditions,
+                    re_formula = NULL) 
+
+conditional_effects(Cw_priormod, effects = "PC2", conditions = conditions,
+                    re_formula = NULL) 
+
+conditional_effects(Cw_priormod, effects = "PC3", conditions = conditions,
+                    re_formula = NULL) 
+
+#posterior model---- 
+#look at data 
+hist(feas.dat.clim$TotalA)
+plot(feas.dat.clim$newfeas_ord, feas.dat.clim$TotalA) 
+plot(feas.dat.clim$newfeas_ord, log(feas.dat.clim$TotalA+1)) #4s too high
+
+#sqrt transform response
+Cwfeas$TotalA_sqrt<-sqrt(Cwfeas$TotalA)
+hist(Cwfeas$TotalA_sqrt)
+
+#FIT MODEL first with default (flat) priors
+Cw_postmod_flat<-brm(bf(TotalA_sqrt ~ PC1 + PC2 + PC3 + zone + (PC1 + PC2 + PC3 ||edatope)), 
+                     # hu ~  CMIs + Tave_sms + zone),
+                     data = Cwfeas, 
+                     family = skew_normal(),
+                     chains = 2, iter = 5000, warmup = 2000,
+                     control = list(adapt_delta = 0.9))
+
+save(Cw_postmod_flat, file= "outputs/brms/Cw_postmod_flat.Rdata")
+
+summary(Cw_postmod_flat)
+pp_check(Cw_postmod_flat)
+pred <- posterior_predict(Cw_postmod_flat)
+bayesplot::ppc_dens_overlay(y = log1p(Cwabund$TotalA), 
+                            yrep = log1p(pred[1:10,]))
+bayes_R2(Cw_postmod_flat)
+#flatpriors<-get_prior(Cw_postmod_flat)
+
+#set informed priors from prior model
+get_prior(Cw_postmod_flat)
+summary(Cw_priormod)
+#use mu estimates from prior model and sd estimates 
+#may want to increase the width of sd estimates 
+priors<- c(set_prior("normal(2.37, 0.5)", class = "Intercept"), 
+           #set_prior("normal(0.45, 0.62)", class = "Intercept", dpar='hu'),
+           set_prior("normal(-0.07, 0.03)", class = "b", coef = "PC1"),
+           set_prior("normal(-0.14, 0.05)", class = "b", coef = "PC2"),
+           set_prior("normal( 0.22, 0.12)", class = "b", coef = "PC3"),
+           set_prior("normal(1.83, 0.51)", class = "b", coef = "zoneCDF"),
+           set_prior("normal(1.45, 0.48)", class = "b", coef = "zoneCWH"),
+           set_prior("normal(0.31, 0.48)", class = "b", coef = "zoneESSF"),
+           set_prior("normal(2.16, 0.45)", class = "b", coef = "zoneICH"),
+           set_prior("normal(1.4, 0.44)", class = "b", coef = "zoneIDF"),
+           set_prior("normal(0.74, 0.46)", class = "b", coef = "zoneMS"),
+           set_prior("normal(0.91, 0.46)", class = "b", coef = "zonePP"),
+           set_prior("normal(0.79, 0.47)", class = "b", coef = "zoneSBS"),
+           #set_prior("normal(-1.85, 0.14)", class = "b", coef = "Tave_sms", dpar='hu'),
+           #set_prior("normal(0.83, 0.18)", class = "b", coef = "CMIs", dpar='hu'),
+           set_prior("normal(0.54, 0.18)", class = "sd", group = "edatope", coef = "Intercept"), 
+           set_prior("normal(0.07, 0.03)", class = "sd", group = "edatope", coef = "PC1"),   
+           set_prior("normal(0.08, 0.04)", class = "sd", group = "edatope", coef = "PC2"),
+           set_prior("normal(0.31, 0.12)", class = "sd", group = "edatope", coef = "PC3"),
+           #set_prior("normal(2.16, 0.62)", class = "sd", group = "edatope", dpar='hu', coef = "Intercept"),  
+           #set_prior("normal(0.20, 0.15)", class = "sd", group = "edatope", dpar='hu', coef = "Tave_sms"),   
+           #set_prior("normal(0.32, 0.24)", class = "sd", group = "edatope", dpar='hu', coef = "CMIs"), 
+           set_prior("normal(1.83,  0.03)", class="sigma"), 
+           set_prior("normal(3.94,  0.24)", class="alpha")) 
+#not sure what parameters these correspond with but filling in so not run as default... 
+#set_prior("normal(0, 1)", class = "sd", lb=0),      
+#set_prior("normal(0, 1)", class = "sd", lb=0), 
+#set_prior("normal(0, 1)", class = "sd", lb=0, group = "edatope"),      
+#set_prior("normal(0, 1)", class = "sd", lb=0, group = "edatope", dpar='hu'), 
+#set_prior("normal(0, 1)", class = "b"),      
+#set_prior("normal(0, 1)", class = "b",  dpar='hu' ))      
+
+#FIT MODEL again with expert informed priors
+Cw_postmod_expert<-brm(bf(TotalA_sqrt ~ PC1 + PC2 + PC3 + zone + (PC1 + PC2 + PC3 ||edatope)), 
+                       data = Cwfeas, prior = priors,
+                       family = skew_normal(),
+                       chains = 2, iter = 5000, warmup = 2000,
+                       control = list(adapt_delta = 0.9),sample_prior = TRUE)
+save(Cw_postmod_expert, file= "outputs/brms/Cw_postmod_expert.Rdata")
+get_prior(Cw_postmod_expert)
+
+#look at model output
+summary(Cw_postmod_expert)
+ranef(Cw_postmod_expert)
+pp_check(Cw_postmod_expert)
+pred <- posterior_predict(Cw_postmod_expert)
+bayesplot::ppc_dens_overlay(y = log1p(Cwabund$TotalA), 
+                            yrep = log1p(pred[1:10,]))
+#not much difference in pp_check compared to post-flat prior model :/ not sure if priors are actually getting set correctly or defaults still being used?.. 12/19/24
+#slightly overpredicting at lower abundances and underpredicting at higher abundances... how to update priors or sim data to address this? 
+
+#r2
+bayes_R2(Cw_postmod_expert) 
+bayes_R2(Cw_postmod_flat)
+
+#prior-posterior plots 
+MODform<-bf(TotalA_sqrt ~ PC1 + PC2 + PC3 + zone + (PC1 + PC2 + PC3 ||edatope))
+Cw_prioronly_mod<- 
+  brm(MODform, cores=3, prior = priors,  data=Cwfeas, family = skew_normal(),
+      sample_prior = "only") 
+
+summary_prior<-summary(Cw_prioronly_mod)
+summary_prior<-summary_prior$fixed
+summary_prior$mod<-"prior"
+
+summary_post<-summary(Cw_postmod_expert)
+summary_post<-summary_post$fixed
+summary_post$mod<-"posterior"
+
+summary_all<-rbind(summary_post, summary_prior)
+summary_all$param<-row.names(summary_all)
+summary_all$paramx<- gsub("[^A-Za-z]+", "", summary_all$param)
+
+#plot posterior and prior model estimates 
+library(ggplot2)
+ggplot(summary_all, aes(y=Estimate, x=param, fill=mod, color=mod)) +
+  geom_pointrange(aes(ymin=Estimate-Est.Error, 
+                      ymax=Estimate+Est.Error))+
+  xlab("Model parameter")+ 
+  scale_color_discrete(name="Model")+ scale_fill_discrete(name="Model")
+
+#ok priors are not capturing posteriors... what to do now?!
+plot(hypothesis(Cw_postmod_expert, "PC1 < 0"))
+plot(hypothesis(Cw_postmod_expert, "PC2 > 0"))
+plot(hypothesis(Cw_postmod_expert, "PC3 > 0"))
+plot(hypothesis(Cw_postmod_expert, "zoneCDF> 0"))
+plot(hypothesis(Cw_postmod_expert, "zoneCWH> 0"))
+plot(hypothesis(Cw_postmod_expert, "zoneESSF< 0"))
+plot(hypothesis(Cw_postmod_expert, "zoneICH> 0"))
+plot(hypothesis(Cw_postmod_expert, "zoneIDF> 0"))
+plot(hypothesis(Cw_postmod_expert, "zoneMS< 0"))
+plot(hypothesis(Cw_postmod_expert, "zonePP< 0"))
+plot(hypothesis(Cw_postmod_expert, "zoneSBS< 0"))
+
+#plot conditional effects (mu+hu) 
+conditions <- expand_grid(edatope = unique(Cwfeas$edatope)) |> 
+  mutate(cond__ = paste0(edatope))
+#CMI
+df1<-conditional_effects(Cw_postmod_expert, effects = "PC3", conditions = conditions,
+                         re_formula = NULL)
+df1<-df1$PC3
+df1$prior<-"expert"
+
+#compare to default priors -different!
+df2<-conditional_effects(Cw_postmod_flat, effects = "PC3", conditions = conditions,
+                         re_formula = NULL) 
+df2<-df2$PC3
+df2$prior<-"flat"
+df<-rbind(df1, df2)
+
+ggplot(df, aes(x=PC3, y=estimate__, fill=prior, color=prior))+
+  geom_smooth()+ 
+  facet_wrap(~factor(edatope, levels = c("AB0", "C0", "AB12", "C12", "DE12", "AB34", "C34", "DE34", "AB56", "C56", "DE56")))+
+  theme_bw()
+unique(df$edatope)
+#Tave
+df3<-conditional_effects(Cw_postmod_expert, effects = "Tave_sms", conditions = conditions,
+                         re_formula = NULL) 
+df3<-df3$Tave_sms
+df3$prior<-"expert"
+
+#compare to default priors -different!
+df4<-conditional_effects(Cw_postmod_flat, effects = "Tave_sms", conditions = conditions,
+                         re_formula = NULL) 
+df4<-df4$Tave_sms
+df4$prior<-"flat"
+
+df0<-rbind(df3, df4)
+
+dummy<-df0[1,]
+dummy2<-df0[1,]f
+dummy$edatope<- "DE0"
+dummy2$edatope<-"DE7"
+
+df0<-rbind(df0, dummy, dummy2)
+
+#back scale Temp
+#mean(Cwabund$Tave_sm)
+#sd(Cwabund$Tave_sm)
+df0$Tave_sm<-(df0$Tave_sms+12.92)*2.27
+
+ggplot(df0, aes(x=Tave_sm, y=estimate__, fill=prior, color=prior))+
+  geom_line()+ 
+  facet_wrap(~factor(edatope, levels = c("AB0", "C0", "DE0", "AB12", "C12", "DE12", "AB34", "C34", "DE34", "AB56", "C56", "DE56", "AB7", "C7", "DE7")), ncol=3)+
+  theme_bw() + ylab("plot rel. abundance")
+
+
+#need to extract predictions and then collapse back into ordinal categories 
+library(emmeans)
+epreds<-Cw_postmod_expert%>%
+  emmeans(~ PC1 + PC2 + PC3 + edatope, var = "PC3",
+          at = list(edatope=unique(Cwfeas$edatope),
+                    PC3 = seq(-1,3, 1)),
+          epred = TRUE, re_formula = NULL, allow_new_levels = TRUE) 
+
+
 
 #other package options----
 #ordinal package version
