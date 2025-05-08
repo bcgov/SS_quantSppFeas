@@ -59,3 +59,6 @@ data/clim_dat.plots.Rdata
 
 #don't need to push 
 data/spatial/
+scripts/OTHER
+data/site_assoc_list.csv
+data/NBEC_list.csv
