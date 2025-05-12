@@ -38,7 +38,13 @@ climdat<- select(feas.dat.clim, climrVars) %>%
 # Perform principal component analysis (PCA) on the standardized data
 climpca<-  prcomp(climdat)
 
-# Print a summary of the PCA results
+# Extracting loading scores (also called rotation matrix)
+#scores <- climpca$rotation
+
+# Displaying loadings for the first 3 principal components
+#scores<-as.data.frame(loading_scores[, 1:3])
+
+#Print a summary of the PCA results
 #summary(climpca)
 #biplot(climpca)
 #scores(climpca)
