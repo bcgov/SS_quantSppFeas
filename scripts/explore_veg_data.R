@@ -35,31 +35,33 @@ gc()
 ss_cleaned<-read.csv("C:/Users/ccollins/OneDrive - Government of BC/CCISS/ccissv13_workingfiles/Feasibility_modelling/All_BGC12DEC2024_SU.csv") 
 all_dat<-left_join(all_dat, ss_cleaned) 
 
-#remove anything not designated A BEC or BGC Unit from Will's list and that is not tree layer (TotalA)
-tree_dat<-filter(all_dat, !is.na(bgc) &!is.na(TotalA))
+#remove anything that is not tree layer (TotalA or B)
+#how to deal with B layer?? add to A layer? if nothing in A layer, use B layer? average? 
+tree_dat<-filter(all_dat, !is.na(TotalA)|!is.na(TotalB))  
+#(not designated A BGC Unit from Will's list) and #!is.na(bgc))
+rm(all_dat)
+gc()
 tree_dat<-separate(tree_dat, SiteUnit, into = c("Zone", "Site"), sep = '/', remove=F) #can ignore warning 
 sort(unique(tree_dat$Species))
 
-#remove anything not assigned to spp level 
-#tree_dat<-subset(tree_dat, Species!="SALIX" & Species!="TAXUS"&Species!="MALUS"&Species!="UNKNOWN"&Species!="PICEA"&
-#     Species!="POPULUS"& Species!="BETULA" & Species!="ALNUS"  & Species!="TSUGA" & Species!="THUJA")
-  
 spp_tab0<-tree_dat%>%
   group_by(Species)%>%
   summarise(nobs=n())
 spp_keep<-subset(spp_tab0, nobs>100)
 spp_keep<-spp_keep$Species #30 total 
 
+
 #remove any tree spp with <100 total obs  
-tree_dat<-filter(tree_dat, Species %in% spp_keep) 
+tree_dat<-filter(tree_dat, Species %in% spp_keep)
+
+#keep only major tree species 
+tree_dat<-subset(tree_dat, grepl('ABIE|THUJ|PSEU|PINU|PICE|CALL|TAX|LARI|TSUG|ACER|POPU|ALNURUB|BETUPAP|
+                                 ACERMAC|ARBU|QUER', Species))
 
 #look at nobs of spp by site units 
 spp_tab<-tree_dat%>%
                 group_by(Species, SiteUnit, bgc,Site)%>%
                 summarise(nobs=n())
-max(spp_tab$nobs)#138
-min(spp_tab$nobs) #1
-mean(spp_tab$nobs)#7
 
 #filter anything with n obs <3 (need for random effect)
 remove<-subset(spp_tab, nobs<2)
@@ -183,6 +185,8 @@ SMRs<-dplyr::select(SMRs, SiteUnit, MoistureRegime, NutrientRegime, NutrientRegi
 
 #merge back to tree data
 tree_dat<-left_join(tree_dat, SMRs)
+unique(tree_dat$MoistureRegime_clean)
+unique(tree_dat$NutrientRegime_clean)
 
 #remove rows with NAs in Moisture/Nutrient regimes 
 tree_dat<- subset(tree_dat, NutrientRegime_clean!="NA"& MoistureRegime_clean!="NA")
@@ -196,11 +200,13 @@ hist(log(tree_dat$TotalA)) #not bad...
 #create a year column
 #library(lubridate)
 #tree_dat<-mutate(tree_dat,year=year(Date))
-#names(tree_dat)
+names(tree_dat)
 
 #fix species names 
 tree_dat<-mutate(tree_dat, Species=if_else(Species=="PINUCON1"|Species=="PINUCON2","PINUCON", Species))%>%
   mutate(Species=if_else(Species=="PSEUMEN1"|Species=="PSEUMEN2","PSEUMEN", Species))
+
+unique(tree_dat$Species)
 
 #check for NAs 
 tree_dat2<-na.omit(tree_dat)
@@ -209,7 +215,8 @@ nas<-anti_join(tree_dat, tree_dat2)
 nacols <- function(df) {
   colnames(df)[unlist(lapply(df, function(x) any(is.na(x))))]
 }
-nacols(nas) #not using any of these columns in the modeling so should be good 
+nacols(nas)
+names(tree_dat)
 
 #save cleaned tree data----
 save(tree_dat, file="data/tree_data_cleaned.Rdata")

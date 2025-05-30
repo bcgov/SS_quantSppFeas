@@ -18,7 +18,7 @@ load(file="data/feas_abund_clim_data.Rdata")
 #remove NAs for ordination
 feas.dat.clim$feasible<-NULL
 feas.dat.clim$MesoSlopePosition<-NULL
-feas.dat.clim<-na.omit(feas.dat.clim)
+#feas.dat.clim<-na.omit(feas.dat.clim)
 
 #removing large climate outlier plot in Mhmm1/101a
 feas.dat.clim<-subset(feas.dat.clim, PlotNumber!= "S95CT71")
