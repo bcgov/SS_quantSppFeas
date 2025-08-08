@@ -34,131 +34,161 @@ library(remotes)
 #library(NBZIMM) #zero infl gaussian
 #library(bhsdtr2) #hierarchical ordinal bayesian  
 
-#load feasibility plus abundance dataset with climate data 
+#load feasibility plus abundance dataset  
+#load(file="data/feasibility_abundance_data.Rdata")
+#load feasibility plus abundance dataset plus climate
 load(file="data/feas_abund_clim_data.Rdata")
+feas.dat.sub<-feas.dat.clim
 
 #create a unique variable for the 15 edatopic spaces  
-feas.dat.clim$edatopex<-paste(feas.dat.clim$NutrientRegime_clean, feas.dat.clim$MoistureRegime_clean, sep="")
-feas.dat.clim<- mutate(feas.dat.clim, edatope=case_when(edatopex=="C3"|edatopex=="C4"~"C34",
-                                                      edatopex=="C1"|edatopex=="C2"~"C12",
-                                                      edatopex=="C5"|edatopex=="C6"~"C56",
-                                                      edatopex=="C0"~"C0",
-                                                      edatopex=="C7"~"C7",
-                                                      edatopex=="A3"|edatopex=="A4"|edatopex=="B3"|edatopex=="B4"~"AB34",
-                                                      edatopex=="A1"|edatopex=="A2"|edatopex=="B1"|edatopex=="B2"~"AB12",
-                                                      edatopex=="A5"|edatopex=="A6"|edatopex=="B5"|edatopex=="B6"~"AB56",
-                                                      edatopex=="A0"|edatopex=="B0"~"AB0",
-                                                      edatopex=="A7"|edatopex=="B7"~"AB7",
-                                                      edatopex=="A0"|edatopex=="B0"~"AB0",
-                                                      edatopex=="D3"|edatopex=="D4"|edatopex=="E3"|edatopex=="E4"~"DE34",
-                                                      edatopex=="D1"|edatopex=="D2"|edatopex=="E1"|edatopex=="E2"~"DE12",
-                                                      edatopex=="D5"|edatopex=="D6"|edatopex=="E5"|edatopex=="E6"~"DE56",
-                                                      edatopex=="D0"|edatopex=="E0"~"DE0",
-                                                      edatopex=="D7"| edatopex=="D8"|edatopex=="E7"~"DE78",  #8 not in BYBEC
-                                                      edatopex=="F5"|edatopex=="F6"~"F56", #F not in ByBEC
-                                                      edatopex=="F3"~"F3", #F not in BYBEC
+feas.dat.sub$edatope<-paste(feas.dat.sub$NutrientRegime_clean, feas.dat.sub$MoistureRegime_clean, sep="")
+feas.dat.sub<-subset(feas.dat.sub, edatope!= "B8"& edatope!= "C8"& edatope!= "D8"& edatope!= "F3"& edatope!= "F5")
+feas.dat.sub<- mutate(feas.dat.sub, edatopex=case_when(edatope=="C3"|edatope=="C4"~"C34",
+                                                      edatope=="C1"|edatope=="C2"~"C12",
+                                                      edatope=="C5"|edatope=="C6"~"C56",
+                                                      edatope=="C0"~"C0",
+                                                      edatope=="C7"~"C7",
+                                                      edatope=="A3"|edatope=="A4"|edatope=="B3"|edatope=="B4"~"AB34",
+                                                      edatope=="A1"|edatope=="A2"|edatope=="B1"|edatope=="B2"~"AB12",
+                                                      edatope=="A5"|edatope=="A6"|edatope=="B5"|edatope=="B6"~"AB56",
+                                                      edatope=="A0"|edatope=="B0"~"AB0",
+                                                      edatope=="A7"|edatope=="B7"~"AB7",
+                                                      edatope=="A0"|edatope=="B0"~"AB0",
+                                                      edatope=="D3"|edatope=="D4"|edatope=="E3"|edatope=="E4"~"DE34",
+                                                      edatope=="D1"|edatope=="D2"|edatope=="E1"|edatope=="E2"~"DE12",
+                                                      edatope=="D5"|edatope=="D6"|edatope=="E5"|edatope=="E6"~"DE56",
+                                                      edatope=="D0"|edatope=="E0"~"DE0",
+                                                      edatope=="D7"| edatope=="E7"~"DE7",  
                                                       TRUE~NA))
-#remove Fs and 8s (Colin 12/20/24)
-feas.dat.clim<-subset(feas.dat.clim, edatope!="F56"& edatope!="F3"& edatope!="DE78")
-feas.dat.clim$edatope<-as.factor(feas.dat.clim$edatope)
-unique(feas.dat.clim$edatope)
+feas.dat.sub$edatope<-as.factor(feas.dat.sub$edatope)
+sort(unique(feas.dat.sub$edatope))#no E0s 
 
 #set moist and nutrients as ordinal
-#feas.dat.clim$MoistureRegime_clean<-ordered(feas.dat.clim$MoistureRegime_clean, levels = c(8,7,6,5,4,3,2,1,0))
-#feas.dat.clim$NutrientRegime_clean<-ordered(feas.dat.clim$NutrientRegime_clean, levels = c("F", "E", "D", "C", "B", "A"))
+#feas.dat.sub$MoistureRegime_clean<-ordered(feas.dat.sub$MoistureRegime_clean, levels = c(8,7,6,5,4,3,2,1,0))
+#feas.dat.sub$NutrientRegime_clean<-ordered(feas.dat.sub$NutrientRegime_clean, levels = c("F", "E", "D", "C", "B", "A"))
 
 #build prior model dataset
-#simulate cover data with decreasing density function
-simulate_data <- function(min_val, max_val, n) {
-  # Create a decreasing probability density
-  density_fn <- function(x) {
-    1 / (x^(1.25))  # Decreasing power law function (adjust exponent to control steepness)
-  }
-  # Normalize the density to use as probabilities
-  x_vals <- seq(min_val, max_val, length.out = 1000)
-  prob_density <- density_fn(x_vals)
-  prob_density <- prob_density / sum(prob_density)  # Normalize to sum to 1
-  
-  # Sample data based on the density
-  sampled_vals <- sample(x_vals, n, replace = TRUE, prob = prob_density)
-  
-  return(sampled_vals)
-}
 
 #run for Fd----
-Fdfeas<-subset(feas.dat.clim, spp=="Fd")
-#make sure all zones have >= 3 records 
-group_by(Fdfeas, zone)%>%summarise(ct=n())
+Fdfeas<-subset(feas.dat.sub, spp=="Fd")
 
-#how many ratings within each class? 
-nrat<-group_by(Fdfeas, newfeas_ord)%>%summarise(counts=n())
-nrat<-nrat$counts
+# Define the ranges for each class- use area cutoffs from Table 3.3 LMH 25
+# Simulate random data for each class within the given ranges, use zero for E5
+Fdfeas <- Fdfeas %>%
+  group_by(newsuit) %>%
+  mutate(sim_abund = case_when(newsuit=='4'~runif(n(), 0.01, 1), 
+                               newsuit=='3'~runif(n(), 1.01, 10), 
+                               newsuit=='2'~runif(n(), 10.01, 25), 
+                               newsuit=='1'~runif(n(), 25.01, 100), TRUE~0))
+    
+# allow for 20% overlap between categories 
+Fdfeas <- Fdfeas %>%
+  group_by(newsuit) %>%
+  mutate(sim_abund = case_when(newsuit=='4'~runif(n(), 0.01, 2.8), 
+                               newsuit=='3'~runif(n(), 0.8, 13), 
+                               newsuit=='2'~runif(n(), 8.2, 40), 
+                               newsuit=='1'~runif(n(), 22, 100), TRUE~0))
+#remove E5 data 
+Fdfeas<-subset(Fdfeas, sim_abund>0)
 
-# Define the ranges for each class- use proposed cutoffs from Mariotte et al. 2014 (New Phyt) and 
-# Simulate random data for each class within the given ranges 
-#feas4_data <- simulate_data(0.01, 0.5, nrat[1])
-#feas3_data <- simulate_data(0.51, 2, nrat[2]) 
-#feas2_data <- simulate_data(2.01, 12, nrat[3])
-#feas1_data <- simulate_data(12.01, 100, nrat[4])
-
-#same cutoffs but allowing for 20% overlap between the ranges 
-feas4_data <- simulate_data(0.01, 0.8, nrat[1])
-feas3_data <- simulate_data(0.51, 4, nrat[2]) 
-feas2_data <- simulate_data(2.01, 30, nrat[3])
-feas1_data <- simulate_data(12.01, 100, nrat[4])
-
-#try using example area cutoffs from Table 3.3 LMH 25
-#feas4_data <- simulate_data(0.01, 1, nrat[1])
-#feas3_data <- simulate_data(1.01, 10, nrat[2])
-#feas2_data <- simulate_data(10.01, 25, nrat[3])
-#feas1_data <- simulate_data(25.01, 100, nrat[4])
-
-
-# Combine into one data frame
-sim_data <- data.frame(
-  value = c(feas1_data, feas2_data, feas3_data, feas4_data),
-  newfeas = rep(c("1", "2", "3", "4"), 
-              times = c(length(feas1_data),length(feas2_data), length(feas3_data), length(feas4_data))))
-
-#add zeroes 
-#feas5_data<-data.frame(num = c(1 : 30), value=0, newfeas= 5)
-#feas5_data$num<-NULL
-#sim_data<- rbind(sim_data, feas5_data)
-#hist(sim_data$value)  
-
-#create new col to assign simulated data 
-Fdfeas$sim_abund<-NA
-
-# Assign simulated data values  to full dataframe based on matching class labels
-for (feas in unique(Fdfeas$newfeas)) {
-  # Find the corresponding simulated data for this class
-  sim_values <- sim_data$value[sim_data$newfeas == feas]
-    # Match the class rows in `existing_data` and assign the simulated values
- Fdfeas$sim_abund[Fdfeas$newfeas == feas] <- sim_values
-}
-
-#look at sim data 
-hist(Fdfeas$sim_abund)
-#look at actual data 
-hist(Fdfeas$TotalA)
 #by level
-plot(as.factor(Fdfeas$newfeas), Fdfeas$sim_abund) 
+plot(as.factor(Fdfeas$newsuit), Fdfeas$sim_abund) 
+#look at dist
+hist(Fdfeas$sim_abund)
+#sqrt transform response
+hist(sqrt(Fdfeas$sim_abund)) #not normal :/ 
+
+#subset by review list
+review_list<-read.csv("data/review_list.csv")
+review_list$X<-NULL
+Fd_rev<-subset(review_list, spp=="Fd")%>%select(zone, bgc, ss_nospace)%>%distinct(.)
+
+Fdfeas<-subset(Fdfeas, bgc %in% Fd_rev$bgc)
+hist(sqrt(Fdfeas$sim_abund))
+
+# sub from each category so normally distributed with sqrt transform
+#nrat<-group_by(Fdfeas, newsuit_ord)%>%summarise(counts=n()) #how many obs in each group?
+#prior_data <-
+#  group_by(Fdfeas, newsuit_ord) %>% arrange(newsuit_ord)%>% 
+#  nest() %>%            
+#  ungroup() %>% 
+#  mutate(n = c(75, 200, 350, 175))%>% 
+#  mutate(samp = map2(data, n, sample_n)) %>% 
+#  select(-data) %>%
+#  unnest(samp)
+
+#look at dist
+#hist(prior_data$sim_abund)
+#hist(sqrt(prior_data$sim_abund)) #decent
+
+#fit brms models----
+
+#Prior model 
+#continuous response - sqrt transform
+Fdfeas$sim_abund_sqrt<-sqrt(Fdfeas$sim_abund)
+
+Fd_priormod_int<-brm(bf(sim_abund_sqrt~ (1|bgc:edatope)+ (1|zone)) , 
+                     data = Fdfeas,
+                     family = skew_normal(),
+                     chains = 2, iter = 5000, warmup = 2000, 
+                     control = list(adapt_delta = 0.9))
+pp_check(Fd_priormod_int)
+save(Fd_priormod_int, file= "outputs/brms/Fd_priormod_interceptonly.Rdata")
+summary(Fd_priormod_int)
+
+Fdpriors<- c(set_prior("normal(5.0, 0.42)", class= "Intercept"), 
+             set_prior("normal(1.68, 0.1)", class = "sd", group = 'bgc:edatope'), 
+             set_prior("normal(1.22, 0.4)", class = "sd", group = 'zone'), 
+             set_prior("normal(1.66,  0.05)", class="sigma"), 
+             set_prior("normal(1.0,  0.2)", class="alpha"))
+#posterior (data) model
 
 #sqrt transform response
-Fdfeas$sim_abund_sqrt<-sqrt(Fdfeas$sim_abund)
-hist(Fdfeas$sim_abund_sqrt)
+hist(Fdfeas$TotalAB)
+Fdfeas$TotalAB_sqrt<-sqrt(Fdfeas$TotalAB)
+hist(Fdfeas$TotalAB_sqrt)
 
-#fit brms models ----
+Fd_postmod_int<-brm(bf(TotalAB_sqrt~ (1|bgc:edatope) + (1|zone)) , 
+                    data = Fdfeas,
+                    family = skew_normal(), prior =Fdpriors, 
+                    chains = 2, iter = 5000, warmup = 2000, 
+                    control = list(adapt_delta = 0.9))
+pp_check(Fd_postmod_int)
+save(Fd_postmod_int, file= "outputs/brms/Fd_postmod_interceptonly.Rdata")
+
+#kfold CV----
+looFd<-loo(Fd_postmod_int, save_psis = TRUE)
+loo_R2(Fd_postmod_int)
+options(future.globals.maxSize = 5e10)
+kfoldFd<- kfold(Fd_postmod_int, K = 5, save_fits = T)
+save(kfoldFd, file= "outputs/brms/kfold_Fd.Rdata")
+predict_Fd <- kfold_predict(kfoldFd, method = "predict")
+
+MAE <- function(y, yrep) {
+  yrep_mean <- colMeans(yrep)
+  mean(abs(yrep_mean - y))
+}
+kfold_mae <- MAE(y = predict_Fd$y, yrep = predict_Fd$yrep)
+print(kfold_mae)
+plot(predict_Fd$y, yrep[1,])
+correlations <- apply(yrep, 1, function(row) cor(predict_Fd$y, row))
+max(correlations)
+min(correlations)
+mean(correlations)
+
+
+help("future.globals.maxSize", package = "future")
+
+#fit brms models (regression)---- 
 #model predictors 
 #zone -> regional climate  baseline zone = BG
-#subzone (bgc)-> local (subregional) climate- likely co-varies with edatope and plot level climate so currently not in model
+#subzone (bgc)-> local (subregional) climate
 #PC1, PC2, PC3-> plot level climate (PC axes) 
 #PC1~ spring/summer temp (-), PC2~ cMI (+), CMD (-), PC3~ PAS (-)
 #edatope -> site conditions- SMR/SNR (interact with plot level climate)
 
-#Prior model 
-#continuous response - 
-Fd_priormod<-brm(bf(sim_abund_sqrt~ 0 + Intercept + PC1 + PC2 + PC3 + zone + (PC1 + PC2 + PC3|edatope)) , 
+
+Fd_priormod<-brm(bf(sim_abund_sqrt~ 0 + Intercept + PC1 + PC2 + PC3 + bgc + (PC1 + PC2 + PC3|edatope)) , 
   data = Fdfeas,
   family = skew_normal(),
   chains = 2, iter = 5000, warmup = 2000, 
@@ -174,14 +204,14 @@ bayes_R2(Fd_priormod)
 
 #posterior model
 #look at data 
-hist(feas.dat.clim$TotalA)
-plot(feas.dat.clim$newfeas_ord, feas.dat.clim$TotalA) 
-plot(feas.dat.clim$newfeas_ord, log(feas.dat.clim$TotalA+1)) #4s too high
+hist(feas.dat.clim$TotalAB)
+plot(feas.dat.clim$newsuit_ord, feas.dat.clim$TotalAB) 
+plot(feas.dat.clim$newsuit_ord, log(feas.dat.clim$TotalA+1)) #4s too high
 
 #sqrt transform response
-hist(Fdfeas$TotalA)
-Fdfeas$TotalA_sqrt<-sqrt(Fdfeas$TotalA)
-hist(Fdfeas$TotalA_sqrt)
+hist(Fdfeas$TotalAB)
+Fdfeas$TotalAB_sqrt<-sqrt(Fdfeas$TotalAB)
+hist(Fdfeas$TotalAB_sqrt)
 
 #FIT MODEL first with default (flat) priors
 Fd_postmod_flat<-brm(bf(TotalA_sqrt ~ 0 + Intercept + PC1 + PC2 + PC3 + zone + (PC1 + PC2 + PC3|edatope)), 
@@ -313,43 +343,10 @@ ggplot(ce3, aes(x=effect1__, y=estimate__))+ geom_line() +
   theme_bw() + ylab("plot rel. abund (sqrt)") + xlab("PC3")
 
 
-#kfold CV----
-looFd<-loo(Fd_postmod_expert, save_psis = TRUE)
-kfoldFd<- kfold(Fd_postmod_expert, K = 5, save_fits = T)
-save(kfoldFd, file= "outputs/brms/kfold_Fd.Rdata")
-predict_Fd <- kfold_predict(kfoldFd, method = "predict")
-
-MAE <- function(y, yrep) {
-  yrep_mean <- colMeans(yrep)
-  mean(abs(yrep_mean - y))
-}
-kfold_mae <- MAE(y = predict_Fd$y, yrep = predict_Fd$yrep)
-print(kfold_mae)
 
 
 
-#intercept only models ----
-Fd_priormod_int<-brm(bf(sim_abund_sqrt~ (1|zone:edatope)) , 
-                     data = Fdfeas,
-                     family = skew_normal(),
-                     chains = 2, iter = 5000, warmup = 2000, 
-                     control = list(adapt_delta = 0.9))
-pp_check(Fd_priormod_int)
-save(Fd_priormod_int, file= "outputs/brms/Fd_priormod_interceptonly.Rdata")
-summary(Fd_priormod_int)
 
-Fdpriors<- c(set_prior("normal(4.2, 0.14)", class= "Intercept"), 
-           set_prior("normal(1.01, 0.11)", class = "sd"), 
-           set_prior("normal(2.08,  0.03)", class="sigma"), 
-           set_prior("normal(3.04,  0.22)", class="alpha"))
-
-Fd_postmod_int<-brm(bf(TotalA_sqrt~ (1|zone:edatope)) , 
-                    data = Fdfeas,
-                    family = skew_normal(), prior =Fdpriors, 
-                    chains = 2, iter = 5000, warmup = 2000, 
-                    control = list(adapt_delta = 0.9))
-pp_check(Fd_postmod_int)
-save(Fd_postmod_int, file= "outputs/brms/Fd_postmod_interceptonly.Rdata")
 
 
 #run for Cw----
