@@ -67,5 +67,5 @@ BEC_nosuit<-select(BEC_nosuit,bgc,ss_nospace,suitability,spp,newsuit,
                    NutrientRegime_clean, MoistureRegime_clean, Elevation,SlopeGradient,Aspect, MesoSlopePosition, 
                    Latitude, Longitude,SuccessionalStatus, StructuralStage,SiteUnit, newsuit_ord, TotalAB) 
 
-save(BEC_nosuit, file="data/inputed_suit_ratings.csv") #save 
+write.csv(BEC_nosuit, "data/inputed_suit_ratings.csv") 
 
