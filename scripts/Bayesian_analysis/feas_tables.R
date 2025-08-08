@@ -95,10 +95,10 @@ rm(nas)
 #create matching columns to feas tables- from ss_cleaned.csv
 #look at data across species/sites 
 #match with updated site series info from WHM- BEC v12, v13 x plot numbers list
-ss_cleaned<-read.csv("data/All_BGC12DEC2024_SU.csv") 
-ss_cleaned2<-read.csv("data/All_BGC13_May2025_SU.csv") 
+#ss_cleaned<-read.csv("data/All_BGC12DEC2024_SU.csv") 
+ss_cleaned<-read.csv("data/All_BGC13_May2025_SU.csv") 
 ss_cleaned$bgc<-NULL
-ss_cleaned<-rbind(ss_cleaned, ss_cleaned2)%>%distinct(.)
+#ss_cleaned<-rbind(ss_cleaned, ss_cleaned2)%>%distinct(.)
 ss_cleaned<-mutate(ss_cleaned, SiteUnit= gsub("ESSFdv ", "ESSFdvw", SiteUnit))#dv not rated 
 tree_dat_sub<-left_join(tree_dat_sub, ss_cleaned) 
 
@@ -143,7 +143,6 @@ cw<-unite(cw, col = "ss_nospace2", c("OldBGC","OldSiteUnitLMH28_26"), sep = "/")
 cw<-unite(cw, col = "ss_nospace_new", c("NewBGC","NewSiteUnit"), sep = "/")
 cw<-select(cw, ss_nospace2, ss_nospace_new)%>%distinct(.)
 
-
 #HAIDA GWAII
 cw1<-read.csv("data/HaidaGwaii_cw.csv") 
 cw1<-mutate(cw1, old.subzone= if_else(grepl('CWH', new.subzone), "CWH", "MH"))
@@ -187,6 +186,9 @@ tree_dat_sub$ss_nospace_final[tree_dat_sub$PlotNumber == "966754"] <- "BWBSdk/11
 tree_dat_sub$ss_nospace_final[tree_dat_sub$ss_nospace == "BWBSwk3/NA" & tree_dat_sub$UserSiteUnit=="BWBSwk 3 /101-mixed"]<-"BWBSwk3/101"
 tree_dat_sub$ss_nospace_final[tree_dat_sub$ss_nospace == "BWBSwk3/NA" & tree_dat_sub$UserSiteUnit=="BWBSwk 3 /102.1"]<-"BWBSwk3/102"
 tree_dat_sub$ss_nospace_final[tree_dat_sub$PlotNumber == "92MK24"|tree_dat_sub$PlotNumber == "92MK22"] <- "BWBSmk/104b"
+tree_dat_sub$ss_nospace_final[tree_dat_sub$ss_nospace == "BWBSdk/110"& tree_dat_sub$ss_nospace2=="BWBSdk/111"] <- "BWBSdk/111"
+tree_dat_sub$ss_nospace_final[tree_dat_sub$ss_nospace == "BWBSmw/NA" & tree_dat_sub$MoistureRegime_clean==2]<-"BWBSmw/102"
+
 
 #CDF/CWH
 tree_dat_sub$ss_nospace_final[tree_dat_sub$UserSiteUnit == "CDF mm   /103Quergar-Camas"] <- "CDFmm/103" 
@@ -294,6 +296,7 @@ tree_dat_sub$ss_nospace_final[tree_dat_sub$ss_nospace_final=="ICHvk1/NA"& tree_d
 tree_dat_sub$ss_nospace_final[tree_dat_sub$ss_nospace_final=="ICHwk1/NA"& tree_dat_sub$MoistureRegime_clean =='7' ] <- "ICHvk1/08"
 tree_dat_sub$ss_nospace_final[tree_dat_sub$ss_nospace2=="ICHxwa/111"]<- "ICHxwa/111"
 tree_dat_sub$ss_nospace_final[tree_dat_sub$PlotNumber == "694-C"] <- "ICHxwa/110"
+tree_dat_sub$ss_nospace_final[tree_dat_sub$nospace_final=="ICHmw3/NA"& tree_dat_sub$MoistureRegime_clean =='7' ]<-"ICHmw3/09"
 
 #IDF
 tree_dat_sub<-mutate(tree_dat_sub, ss_nospace_final=if_else(grepl("IDFdc|IDFxc",ss_nospace2), ss_nospace2, ss_nospace_final))%>%
@@ -323,8 +326,7 @@ tree_dat_subx<-unite(tree_dat_sub, edatope, MoistureRegime_clean, NutrientRegime
                                   edatope=="5B"|edatope=="5C"~"SBSdh2/06",
                                   edatope=="2B"|edatope=="2C"~ "SBSdh2/04",
                                   edatope=="3B"| edatope=="3C"|edatope=="4C"| edatope=="4B"~ "SBSdh2/01", 
-                                  edatope=="5C"|edatope=="5D"~ "",
-                                  edatope=="6C"|edatope=="6D"|PlotNumber=="12-2317"~ "SBSdh2/07", 
+                                  edatope=="5D"|edatope=="6C"|edatope=="6D"|PlotNumber=="12-2317"~ "SBSdh2/07", 
                                   TRUE~NA))%>%
   mutate(ss_nospace_final=(if_else(!is.na(ss_nospace_new), ss_nospace_new,ss_nospace)))%>%select(-edatope)
 tree_dat_sub<- filter(tree_dat_sub, ss_nospace_final!="SBSdh2/NA")%>%rbind(., tree_dat_subx)#bring back into main df
@@ -350,9 +352,20 @@ tree_dat_subx<-unite(tree_dat_sub, edatope, MoistureRegime_clean, NutrientRegime
   mutate(ss_nospace_final=(if_else(!is.na(ss_nospace_new), ss_nospace_new,ss_nospace)))%>%select(-edatope)
 tree_dat_sub<- filter(tree_dat_sub, ss_nospace_final!="SBSwk3a/NA")%>%rbind(., tree_dat_subx)#bring back into main df
 
+tree_dat_subx<-unite(tree_dat_sub, edatope, NutrientRegime_clean, MoistureRegime_clean, sep="", remove=F)%>% 
+  filter(ss_nospace_final=="SBSwk2/NA"|ss_nospace2=="SBSwk2/NA")%>%
+  mutate(ss_nospace_new=case_when(edatope=="A6"~"SBSwk2/04", edatope=="B2"~"SBSwk2/02", 
+                                  edatope=="B3"|edatope=="C3"~"SBSwk2/03",
+                                  edatope=="C5"|edatope=="D5"~"SBSwk2/05",
+                                  edatope=="C6"|edatope=="D6"~"SBSwk2/06",
+                                  edatope=="C4"|edatope=="D3"~"SBSwk2/01",
+                                  TRUE~NA))%>%
+  mutate(ss_nospace_final=(if_else(!is.na(ss_nospace_new), ss_nospace_new,ss_nospace)))%>%select(-edatope)
+tree_dat_sub<- filter(tree_dat_sub, ss_nospace_final!="SBSwk2/NA")%>%rbind(., tree_dat_subx)#bring back into main df
 
-#SWB
-tree_dat_sub$ss_nospace_final[tree_dat_sub$PlotNumber=="O4CH036"] <- "SWBmk/07"
+
+#ESSF
+tree_dat_sub$ss_nospace_final[tree_dat_sub$PlotNumber=="O4CH036"] <- "ESSFmk/07"
 
 #filter out poor quality 
 tree_dat_sub<-subset(tree_dat_sub, !grepl("poor|Poor|POOR", SitePlotQuality))
@@ -361,7 +374,43 @@ tree_dat_sub<-subset(tree_dat_sub, !grepl("omit|Omit", UserSiteUnit))
 #remove any stray spaces
 tree_dat_sub<-mutate(tree_dat_sub, ss_nospace_final= gsub(" ", "", ss_nospace_final))
 
-#join feas with BEC data
+#correct un/unp/uns
+tree_dat_subuns<-subset(tree_dat_sub, grepl('un|unp|uns', ss_nospace_final)) #pull out all site series 
+tree_dat_sub<-anti_join(tree_dat_sub, tree_dat_subuns)#remove from main dataframe 
+tree_dat_subuns<-mutate(tree_dat_subuns, ss_nospace_final= case_when(grepl('BAFAun/', ss_nospace_final)~"BAFAun/00",
+                                                 grepl('BAFAunp/', ss_nospace_final)~"BAFAun/00",
+                                                 grepl('CMAun/', ss_nospace_final)~"CMAun/00",
+                                                 grepl('CMAunp/', ss_nospace_final)~"CMAunp/00",
+                                                 grepl('IMAun/', ss_nospace_final)~"IMAun/00",
+                                                 grepl('IMAunp/', ss_nospace_final)~"IMAunp/00",
+                                                 grepl('ESSFuns/', ss_nospace_final)~"ESSFuns/00",
+                                                 grepl('ESSFunp/', ss_nospace_final)~"ESSFunp/00",
+                                                 grepl('ESSFun/', ss_nospace_final) & MoistureRegime_clean=="1" ~"ESSFun/x",
+                                                 grepl('ESSFun/', ss_nospace_final) & MoistureRegime_clean=="2" ~"ESSFun/x",
+                                                 grepl('ESSFun/', ss_nospace_final) & MoistureRegime_clean=="3" ~"ESSFun/m",
+                                                 grepl('ESSFun/', ss_nospace_final) & MoistureRegime_clean=="4" ~"ESSFun/m",
+                                                 grepl('ESSFun/', ss_nospace_final) & MoistureRegime_clean=="5" ~"ESSFun/h",
+                                                 grepl('ESSFun/', ss_nospace_final) & MoistureRegime_clean=="6" ~"ESSFun/h",
+                                                 grepl('ESSFun/', ss_nospace_final) & MoistureRegime_clean=="7" ~"ESSFun/h",
+                                                 grepl('SBSun/', ss_nospace_final) & MoistureRegime_clean=="1" ~"SBSun/x",
+                                                 grepl('SBSun/', ss_nospace_final) & MoistureRegime_clean=="2" ~"SBSun/x",
+                                                 grepl('SBSun/', ss_nospace_final) & MoistureRegime_clean=="3" ~"SBSun/m",
+                                                 grepl('SBSun/', ss_nospace_final) & MoistureRegime_clean=="4" ~"SBSun/m",
+                                                 grepl('SBSun/', ss_nospace_final) & MoistureRegime_clean=="5" ~"SBSun/h",
+                                                 grepl('SBSun/', ss_nospace_final) & MoistureRegime_clean=="6" ~"SBSun/h",
+                                                 grepl('SBSun/', ss_nospace_final) & MoistureRegime_clean=="7" ~"SBSun/h",
+                                                 grepl('ESSFun/', ss_nospace_final) & MoistureRegime_clean=="1" ~"ESSFun/x",
+                                                 grepl('ESSFun/', ss_nospace_final) & MoistureRegime_clean=="2" ~"ESSFun/x",
+                                                 grepl('ESSFun/', ss_nospace_final) & MoistureRegime_clean=="3" ~"ESSFun/m",
+                                                 grepl('ESSFun/', ss_nospace_final) & MoistureRegime_clean=="4" ~"ESSFun/m",
+                                                 grepl('ESSFun/', ss_nospace_final) & MoistureRegime_clean=="5" ~"ESSFun/h",
+                                                 grepl('ESSFun/', ss_nospace_final) & MoistureRegime_clean=="6" ~"ESSFun/h",
+                                                 grepl('ESSFun/', ss_nospace_final) & MoistureRegime_clean=="7" ~"ESSFun/h"))
+                                                 
+tree_dat_sub<-rbind(tree_dat_sub, tree_dat_subuns)#bring back into main df
+rm(tree_dat_subuns)
+
+#join BEC data with suitability data 
 feas.dat.sub<-rename(feas.dat.sub, ss_nospace_final=ss_nospace)
 feas.dat.subx<-left_join(feas.dat.sub, tree_dat_sub,  relationship = "many-to-many")  
 feas.dat.suby<-subset(feas.dat.subx,!is.na(TotalA)| !is.na(TotalB))
@@ -396,22 +445,13 @@ missing_plots<-select(z, ss_nospace_final)%>%distinct(.)
 
 #sites with BEC data but missing suit ratings
 BEC_missing_feas<-anti_join(feas.dat.subx2, feas.dat.subz)
-BEC_missing_feas_unique<-select(BEC_missing_feas, ss_nospace_final, spp) %>% distinct(.)
-#write.csv(BEC_missing_feas_unique, "data/BEC_missing_feas_unique.csv")
+BEC_missing_feas$X<-NULL
+write.csv(BEC_missing_feas, "data/BEC_missing_feas.csv")
 
-#merge plot data by bgc, edatope for feas missing BEC - NOT CURRENTLY USING 
-#Feas_missing_BEC<-left_join(Feas_missing_BEC, edat)%>%select(bgc,ss_nospace,suitability,spp,newsuit,mod,outrange, source, edatopic)
-#ss_cleaned<-read.csv("C:/Users/ccollins/OneDrive - Government of BC/CCISS/ccissv13_workingfiles/Feasibility_modelling/All_BGC12DEC2024_SU.csv") 
-#tree_dat_subx<-unite(tree_dat_sub, edatopic,  NutrientRegime_clean, MoistureRegime_clean, sep="", remove=F)%>%left_join(., ss_cleaned)%>%
-#  mutate(bgc= gsub(" ", "", bgc))%>%filter(bgc))
-#test<-left_join(Feas_missing_BEC, tree_dat_subx, by=c("bgc", "edatopic", "spp"))%>%subset(!is.na(TotalA)| !is.na(TotalB))%>%
-#  rename(ss_nospace=ss_nospace.x)%>%select(-ss_nospace.y, -source, -edatopic)
-#feas.dat.suby$X<-NULL
 #feas.dat.suby<-rbind(feas.dat.suby, test)
-
 #plot by spp with plot data 
 #create BGC zone column
-feas.dat.sub<-mutate(feas.dat.sub, zone= case_when(grepl('ICH', ss_nospace)~"ICH",grepl('SWB', ss_nospace)~"SWB", grepl('MS', ss_nospace)~"MS",
+feas.dat.sub<-mutate(feas.dat.sub, zone= case_when(grepl('ICH', ss_nospace)~"ICH",grepl('ESSF', ss_nospace)~"ESSF", grepl('MS', ss_nospace)~"MS",
                                 grepl('SBPS', ss_nospace)~"SBPS", grepl('BAFA', ss_nospace)~"BAFA", grepl('CWH', ss_nospace)~"CWH", grepl('IDF', ss_nospace)~"IDF",
                                 grepl('BG', ss_nospace)~"BG", grepl('ESSF', ss_nospace)~"ESSF", grepl('CDF', ss_nospace)~"CDF", grepl('SBS', ss_nospace)~"SBS", 
                                 grepl('MH', ss_nospace)~"MH", grepl('CMA', ss_nospace)~"CMA", grepl('PP', ss_nospace)~"PP", grepl('BWBS', ss_nospace)~"BWBS", TRUE~ NA))
@@ -547,35 +587,63 @@ ggplot(subset(avgs, spp=="Yc"), aes(x = newsuit_ord, y = mean_abund_ss,  alpha=0
   facet_wrap( ~ zone) + theme_bw() + theme(legend.position='none') +ggtitle("Yc")
 
 
-#check E4s and 5s with relative cutoffs
-avgs<-mutate(avgs,review= case_when(newsuit_ord=="4" & mean_abund_ss>10~"Y",
-                                     newsuit_ord=="5" & mean_abund_ss>0~"Y", 
-                                     TRUE~"N"))
+#pull out ss to review 
+#check ratings with relative cutoffs
+avgs<-mutate(avgs,review= case_when(newsuit_ord=="5" & mean_abund_ss>0~"Y",
+                                    newsuit_ord=="4" & mean_abund_ss>3~"Y",
+                                    newsuit_ord=="3" & mean_abund_ss> 13~"Y",
+                                    newsuit_ord=="3" & mean_abund_ss< 1~"Y",
+                                    newsuit_ord=="2" & mean_abund_ss> 40~"Y",
+                                    newsuit_ord=="2" & mean_abund_ss< 8~"Y",
+                                    newsuit_ord=="1" & mean_abund_ss<22~"Y",
+                                    TRUE~"N"))
 
-#pull out ss to review with decent plot data and all 5s with non zero abundances
 check<-subset(avgs, review=="Y")
 
-#for E1-3 try without cutoffs, simply are the averages ordinal within spp x subzone? 
+#filter plot data for quality 
+#throw out anything with only 1 plot or high variability (i.e. mean<sd)
+check<-subset(check, nplots_ss>1 & mean_abund_ss > sd_abund_ss) 
+write.csv(check, "data/review_list.csv")
+
+
+
+#case_when(newsuit=='4'~runif(n(), 0.01, 1), 
+#          newsuit=='3'~runif(n(), 1.01, 10), 
+#          newsuit=='2'~runif(n(),10.01, 25), 
+#          newsuit=='1'~runif(n(),25.01, 100), TRUE~0))
+
+#case_when(newsuit=='4'~runif(n(), 0.01, 2.8), 
+#          newsuit=='3'~runif(n(), 0.8, 13), 
+#          newsuit=='2'~runif(n(), 8.2, 40), 
+#         newsuit=='1'~runif(n(), 22, 100), TRUE~0))
+
+
+#for E1-4 try without cutoffs, simply are the averages ordinal within spp x subzone? 
 check2<-subset(avgs, newsuit_ord>4)%>%group_by(spp, bgc, newsuit_ord) %>% mutate(mean_abund_suit=mean(mean_abund_ss))%>%ungroup(.)
 
 check3<-group_by(check2, spp, bgc)%>% arrange(newsuit_ord, .by_group = TRUE)%>%select(bgc, spp, newsuit_ord, mean_abund_suit)%>%
-  distinct(.)%>%mutate(prior=lag(mean_abund_suit))%>%mutate(diff=mean_abund_suit - prior, prop_diff= diff/prior*-1, 
-                                                            ordinal= if_else(mean_abund_suit>prior,T, F))
+  distinct(.)%>%mutate(prev=lag(mean_abund_suit))%>%mutate(diff=mean_abund_suit - prev, prop_diff= diff/prev*-1, 
+                                                            ordinal= if_else(mean_abund_suit>prev,T, F))%>%
+                                                            mutate(check = if_else(any(ordinal == FALSE, na.rm = TRUE), "Y", "N"))
+#remove E4s duplicated from relative cutoff >2%
+check3<-mutate(check3, remove=if_else(newsuit_ord=='4' & mean_abund_suit>2, "Y", "N"))%>%subset(remove=="N")%>%select(-remove)
+
+check4<-subset(check3, check=="Y")%>%group_by(spp, bgc)%>% arrange(newsuit_ord, .by_group = TRUE)
 
 
-#Site series in suit and edatopic table 
-check2<-subset(edat, ss_nospace %in% feas.dat$ss_nospace)
-#site series in edatopic table missing suit ratings 
-missing_ratings<-anti_join(edat, check2) #only 6!
+list<-select(check, bgc, spp) %>%distinct(.)
+list2<-select(check4, bgc, spp) %>%distinct(.)
+review_list<-rbind(list, list2)%>%distinct(.)
+review_list$ss_nospace<-NULL
+review_list$zone<-NULL
+review_list$Species<-NULL
+review_list<-distinct(review_list)
 
-
-#check across edat table 
-edat<-read.csv("data/Edatopic_v13_11.csv")
-colnames(edat)<-tolower(colnames(edat))
-edat<-dplyr::select(edat, -edatopic)%>%distinct(.)
-edat<-filter(edat, !grepl('_OC|_WC|_CA|_OR|_WA|_ID|_MT|_CA|_WY|_CO|_NV|UT|BSJP|abE|abN|abS|abC|SBAP|SASbo|BWBScmC|BWBScmE|BWBScmNW|BWBScmW|BWBSdmN|BWBSdmS|BWBSlbE|BWBSlbN|BWBSlbW|BWBSlf|BWBSnm|BWBSpp|BWBSub|BWBSuf', ss_nospace))
-edat<-subset(edat, source!="AB_2018")
-
+review_list<-mutate(review_list, 
+      zone= case_when(grepl('ICH', bgc)~"ICH",grepl('ESSF', bgc)~"ESSF", grepl('MS', bgc)~"MS",
+      grepl('SBPS', bgc)~"SBPS", grepl('BAFA', bgc)~"BAFA", grepl('CWH', bgc)~"CWH", grepl('IDF', bgc)~"IDF",
+      grepl('BG', bgc)~"BG", grepl('ESSF', bgc)~"ESSF", grepl('CDF', bgc)~"CDF", grepl('SBS', bgc)~"SBS", 
+      grepl('MH', bgc)~"MH", grepl('CMA', bgc)~"CMA", grepl('PP', bgc)~"PP", grepl('BWBS', bgc)~"BWBS", TRUE~ NA))
 
 
 #pull in climate data ----
@@ -619,9 +687,6 @@ feas.dat.clim<-na.omit(feas.dat.clim)
 feas.dat<-mutate(feas.dat, CMD.total=CMD.def +CMD)
 varsl<-c(c("zone", "bgc", "ss_nospace","spp", "newfeas",  "fid", "WNA_DEM_4326_clipped" ,"xcoord", "ycoord") , climrVars)
 feas.dat.sub<-select(feas.dat, varsl)
-
-#save again
-save(feas.dat.sub, file="data/feasibility_data.Rdata")
 
 names(feas.dat)
 names(feas.dat.clim)
