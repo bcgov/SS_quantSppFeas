@@ -62,7 +62,7 @@ rem<-anti_join(BEC_nosuit, BEC_nosuitx) #did not meet quality filter
 BEC_nosuitx$newsuit_ord<-as.ordered(BEC_nosuitx$newsuit)
 BEC_nosuitx$ss_nospace<-NULL
 BEC_nosuitx<-rename(BEC_nosuitx, ss_nospace=ss_nospace_final)
-BEC_nosuitx$mod<-"inputed" 
+BEC_nosuitx$mod<-"imputed" 
 BEC_nosuitx$bgc<-NULL
 BEC_nosuitx<-separate(BEC_nosuitx, col =  ss_nospace, into = 'bgc',sep =  "/", remove = F)
 
@@ -72,5 +72,5 @@ BEC_nosuitx<-select(BEC_nosuitx,bgc,ss_nospace,suitability,spp,newsuit,
                    NutrientRegime_clean, MoistureRegime_clean, Elevation,SlopeGradient,Aspect, MesoSlopePosition, 
                    Latitude, Longitude,SuccessionalStatus, StructuralStage,SiteUnit, newsuit_ord, TotalAB) 
 
-#write.csv(BEC_nosuit, "data/inputed_suit_ratings.csv") 
+write.csv(BEC_nosuitx, "data/imputed_suit_ratings.csv") 
 
