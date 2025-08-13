@@ -26,6 +26,9 @@ BEC_nosuit$TotalAB<-BEC_nosuit$TotalA+ BEC_nosuit$TotalB
 
 #read in edatopic table 
 edat<-read.csv("data/Edatopic_v13_11.csv")
+edat<-filter(edat, !grepl('_OC|_WC|_CA|_OR|_WA|_ID|_MT|_CA|_WY|_CO|_NV|UT|BSJP|abE|abN|abS|abC|SBAP|SASbo|MGPmg|MGPdm|
+                          BWBScmC|BWBScmE|BWBScmNW|BWBScmW|BWBSdmN|BWBSdmS|BWBSlbE|BWBSlbN|BWBSlbW|BWBSlf|BWBSnm|BWBSpp|BWBSub|BWBSuf', SS_NoSpace))
+
 ss_all<-unique(edat$SS_NoSpace) 
 #subset by edat table
 BEC_nosuit<-subset(BEC_nosuit, ss_nospace_final %in% ss_all)
@@ -37,32 +40,34 @@ avgs<-group_by(BEC_nosuit, ss_nospace_final, Species, spp, newsuit)%>%
   mutate(sd_abund_ss =replace(sd_abund_ss, is.na(sd_abund_ss), 0))
 
 #quality filter 
-avgs<-subset(avgs, nplots_ss>1 & mean_abund_ss > sd_abund_ss) 
+avgsx<-subset(avgs, nplots_ss>2 & mean_abund_ss > sd_abund_ss) 
 
 #assign suit ratings from plot averages
-avgs<-mutate(avgs, newsuit= case_when(mean_abund_ss<1 ~ 4,
+avgsx<-mutate(avgsx, newsuit= case_when(mean_abund_ss<1 ~ 4,
                                       mean_abund_ss>=1 & mean_abund_ss<10 ~ 3,
                                       mean_abund_ss>=10 & mean_abund_ss<25 ~ 2,
                                       mean_abund_ss>=24 ~ 1,
                                       TRUE~NA))
-avgs<-select(avgs, ss_nospace_final, Species, spp, newsuit)
-avgs$bgc<-NULL
+avgsy<-select(avgsx, ss_nospace_final, Species, spp, newsuit)
+avgsy$bgc<-NULL
 
 #join back with plot dataset
 BEC_nosuit$newsuit<-NULL
-BEC_nosuit<-left_join(BEC_nosuit, avgs)
+BEC_nosuit<-left_join(BEC_nosuit, avgsy)
 
 #select only infilled
-BEC_nosuit<-subset(BEC_nosuit, !is.na(newsuit))
-BEC_nosuit$newsuit_ord<-as.ordered(BEC_nosuit$newsuit)
-BEC_nosuit$ss_nospace<-NULL
-BEC_nosuit<-rename(BEC_nosuit, ss_nospace=ss_nospace_final)
-BEC_nosuit$mod<-"inputed" 
-BEC_nosuit$bgc<-NULL
-BEC_nosuit<-separate(BEC_nosuit, col =  ss_nospace, into = 'bgc',sep =  "/", remove = F)
+BEC_nosuitx<-subset(BEC_nosuit, !is.na(newsuit))
+rem<-anti_join(BEC_nosuit, BEC_nosuitx) #did not meet quality filter 
+
+BEC_nosuitx$newsuit_ord<-as.ordered(BEC_nosuitx$newsuit)
+BEC_nosuitx$ss_nospace<-NULL
+BEC_nosuitx<-rename(BEC_nosuitx, ss_nospace=ss_nospace_final)
+BEC_nosuitx$mod<-"inputed" 
+BEC_nosuitx$bgc<-NULL
+BEC_nosuitx<-separate(BEC_nosuitx, col =  ss_nospace, into = 'bgc',sep =  "/", remove = F)
 
 
-BEC_nosuit<-select(BEC_nosuit,bgc,ss_nospace,suitability,spp,newsuit, 
+BEC_nosuitx<-select(BEC_nosuitx,bgc,ss_nospace,suitability,spp,newsuit, 
                    mod,outrange, PlotNumber, Species,TotalA, TotalB,
                    NutrientRegime_clean, MoistureRegime_clean, Elevation,SlopeGradient,Aspect, MesoSlopePosition, 
                    Latitude, Longitude,SuccessionalStatus, StructuralStage,SiteUnit, newsuit_ord, TotalAB) 
