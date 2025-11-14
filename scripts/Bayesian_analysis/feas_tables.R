@@ -26,24 +26,28 @@ library(tidyverse)
 
 #load feasibility data---- 
 feas.dat<-read.csv("data/Suitability_v13_19.csv") #v13_19 updated with Ecologist review as of May 15, 2025
+feas.dat<-read.csv("data/Suitability_v13_22.csv") #v13_22 updated with Craig Delong review & inputed ratings Oct 1, 2025
 feas.dat<-mutate(feas.dat, newsuit=if_else(is.na(newsuit), suitability, newsuit))#if not updated, use previous rating 
 
 #clean and crosswalk tree (plot) data---- 
 #take out the US and alberta stuff because it won't match plot data
 feas.dat.sub<-filter(feas.dat, !grepl('_OC|_WC|_CA|_OR|_WA|_ID|_MT|_CA|_WY|_CO|_NV|UT|BSJP|abE|abN|abS|abC|	MGPmg|
  MGPdm|SBAP|SASbo|BWBScmC|BWBScmE|BWBScmNW|BWBScmW|BWBSdmN|BWBSdmS|BWBSlbE|BWBSlbN|BWBSlbW|BWBSlf|BWBSnm|BWBSpp|BWBSub|BWBSuf', ss_nospace))
+feas.dat.sub<-subset(feas.dat.sub, spp!='X')
+
 #deal with duplicates for coastal and interior spp 
-feas.dat.sub<-select(feas.dat.sub, -sppsplit) %>%distinct(.) #!="Plc"& sppsplit!="Pli"& sppsplit!="Fdc" & sppsplit!="Fdi"& sppsplit!="Pyc"& sppsplit!="Pyi")
+#feas.dat.sub<-select(feas.dat.sub, -sppsplit) %>%distinct(.) #!="Plc"& sppsplit!="Pli"& sppsplit!="Fdc" & sppsplit!="Fdi"& sppsplit!="Pyc"& sppsplit!="Pyi")
 
 #load BC tree data 
 #load(file="data/tree_data_cleaned_wzeros.Rdata")  
-load(file="data/tree_data_cleaned.Rdata") #only use actual plot data, not imputed zeros 
+#load(file="data/tree_data_cleaned.Rdata") #only use actual plot data, not imputed zeros 
 
 #subset cols of interest 
 tree_dat_sub<-dplyr::select(tree_dat, PlotNumber, Species,TotalA, TotalB, 
-                            UserSiteUnit, BECSiteUnit, GIS_BGC, 
-                            SubZone,SiteSeries,        
-                            MapUnit, SitePlotQuality,NutrientRegime_clean,MoistureRegime_clean, 
+                            UserSiteUnit, #BECSiteUnit, 
+                            GIS_BGC, 
+                            SubZone,SiteSeries, #MapUnit, 
+                            SitePlotQuality,NutrientRegime_clean,MoistureRegime_clean, 
                             Elevation, SlopeGradient, Aspect, MesoSlopePosition, Latitude, Longitude,
                             SuccessionalStatus, StructuralStage)   
 str(feas.dat.sub)
@@ -96,9 +100,9 @@ rm(nas)
 #create matching columns to feas tables- from ss_cleaned.csv
 #look at data across species/sites 
 #match with updated site series info from WHM- BEC v12, v13 x plot numbers list
-#ss_cleaned<-read.csv("data/All_BGC12DEC2024_SU.csv") 
+#ss_cleaned_old<-read.csv("data/All_BGC12DEC2024_SU.csv") 
 ss_cleaned<-read.csv("data/All_BGC13_May2025_SU.csv") 
-ss_cleaned$bgc<-NULL
+
 #ss_cleaned<-rbind(ss_cleaned, ss_cleaned2)%>%distinct(.)
 ss_cleaned<-mutate(ss_cleaned, SiteUnit= gsub("ESSFdv ", "ESSFdvw", SiteUnit))#dv not rated 
 tree_dat_sub<-left_join(tree_dat_sub, ss_cleaned) 
@@ -257,7 +261,7 @@ tree_dat_sub$ss_nospace_final[tree_dat_sub$ss_nospace == "ESSFdvw/04"] <- "ESSFd
 tree_dat_sub$ss_nospace_final[tree_dat_sub$ss_nospace == "ESSFdvw/06"] <- "ESSFdvw/06"
 tree_dat_sub$ss_nospace_final[tree_dat_sub$PlotNumber == "K001426"|tree_dat_sub$PlotNumber == "98-977"] <- "ESSFdvw/02"
 tree_dat_sub<-mutate(tree_dat_sub, ss_nospace_final=
-                       if_else(ss_nospace_final=="ESSFxv2/NA" & !is.na(BECSiteUnit), BECSiteUnit, ss_nospace_final))
+                       if_else(ss_nospace_final=="ESSFxv2/NA" & !is.na(UserSiteUnit), UserSiteUnit, ss_nospace_final))
 tree_dat_sub$ss_nospace_final[tree_dat_sub$ss_nospace_final=="ESSFxv2/0304"] <- "ESSFxv2/03" 
 
 tree_dat_sub<-mutate(tree_dat_sub, ss_nospace_final=if_else(GIS_BGC=="ESSFxc3", ss_nospace2, ss_nospace_final))
@@ -416,7 +420,8 @@ knitr::kable(group_by(feas.dat.suby, newsuit_ord)%>%summarise(counts=n()))
 
 #remove duplicate cols
 feas.dat.sub<-select(feas.dat.suby,  -UserSiteUnit,        
-                     -BECSiteUnit, -GIS_BGC,  -SubZone, -SiteSeries, -MapUnit, -ss_nospace2, -ss_nospace_new,  -ss_nospace, 
+                     #-BECSiteUnit,-MapUnit,
+                     -GIS_BGC,  -SubZone, -SiteSeries,  -ss_nospace2, -ss_nospace_new,  -ss_nospace, 
                      -SitePlotQuality)%>%rename(ss_nospace =ss_nospace_final)   
 feas.dat.sub<-distinct(feas.dat.sub)
 

@@ -11,10 +11,11 @@
 
 #libraries 
 library(tidyverse)
-require(data.table)
+#require(data.table)
 
 #pull in climate & plot data ----
 load(file= 'data/clim_dat.plots.Rdata') #59314 obs
+#plot_dat<-plot_dat[ ,c(1:38)]
 
 #merge with veg & site data
 BEC_data<-readRDS("data/BEC_data.rds") #change this to OS #13 
@@ -30,6 +31,12 @@ rm(site_dat)
 rm(veg_dat)
 gc()
 
+#look at data across site series 
+#match with updated site series info from Will - awaiting final BEC v13 x plot numbers list
+ss_cleaned<-read.csv("C:/Users/ccollins/OneDrive - Government of BC/CCISS/ccissv13_workingfiles/Feasibility_modelling/All_BGC12DEC2024_SU.csv") 
+ss_cleaned<-read.csv("data/All_BGC13_May2025_SU.csv")
+all_dat<-left_join(all_dat, ss_cleaned) 
+
 #remove anything that is not tree layer (TotalA or B)
 #how to deal with B layer?? add to A layer? if nothing in A layer, use B layer? average? 
 tree_dat<-filter(all_dat, !is.na(TotalA)|!is.na(TotalB))  
@@ -37,29 +44,65 @@ rm(all_dat)
 gc()
 sort(unique(tree_dat$Species))
 
+#keep only major tree species 
+tree_dat<-subset(tree_dat, 
+      grepl('THUJPLI|TSUGHET|PICEEN|PSEUMEN|ABIELAS|PINUCON|ABIEAMA|TSUGMER|CALLNOO|PICESIT|POPUTRE|POPUTRI|POPUBAL|
+            BETUPAP|PINUPON|PICEGLA|LARIOCC|PICEMAR|PINUMON|ABIEGRA', Species))
+#fix species names 
+tree_dat<-mutate(tree_dat, Species=if_else(Species=="PINUCON1"|Species=="PINUCON2","PINUCON", Species))%>%
+  mutate(Species=if_else(Species=="PSEUMEN1"|Species=="PSEUMEN2","PSEUMEN", Species))
+tree_dat_sub<-mutate(tree_dat_sub, spp= case_when(Species=="ABIEAMA" ~ "Ba",
+                                                  Species== "ARBUMEN" ~"Ra",
+                                                  Species=="ABIEGRA"~ "Bg", 
+                                                  Species=="ABIELAS"~"Bl", 
+                                                  Species=="ACERMAC"~"Mb",
+                                                  Species=="ACERCIR"~"Mv",
+                                                  Species=="ALNURUB"~"Dr",
+                                                  Species=="BETUPAP"~"Ep", 
+                                                  Species=="CALLNOO"~"Yc",
+                                                  Species=="LARILYA"~"La",
+                                                  Species=="LARILAR"~"Lt",  
+                                                  Species=="LARIOCC"~"Lw",  
+                                                  Species=="PICEENE"~ "Sx", #not differentiated
+                                                  Species=="PICEGLA"~"Sx", #not differentiated
+                                                  Species=="PICEA"~"Sx", #not differentiated
+                                                  Species=="PICEAX"~"Sx", #not differentiated
+                                                  Species=="PICEENG"~"Sx", #not differentiated
+                                                  Species=="PICEMAR"~"Sb",
+                                                  Species=="PICESIT"~"Ss",#not differentiated
+                                                  Species=="PICEXLU"~"Ss",#not differentiated
+                                                  Species=="PINUALB"~"Pa",
+                                                  Species=="PINUCON"~"Pl",#not differentiated
+                                                  Species=="PINUPON"~"Py",
+                                                  Species=="PINUMON"~"Pw",
+                                                  Species=="POPUTRE" ~"At",
+                                                  Species=="POPUBAL"~"Ac", #not differentiated
+                                                  Species=="POPUTRI"~"Ac", #not differentiated
+                                                  Species=="PSEUMEN"~"Fd", #not differentiated 
+                                                  Species=="QUERGAR"~"Qg",
+                                                  Species=="TAXUBRE" ~"Tw",
+                                                  Species=="THUJPLI"~"Cw",
+                                                  Species=="TSUGHET" ~"Hw",
+                                                  Species=="TSUGMER"~"Hm")) 
+
+#how many obs per spp?
 spp_tab0<-tree_dat%>%
   group_by(Species)%>%
   summarise(nobs=n())
-spp_keep<-subset(spp_tab0, nobs>100)
-spp_keep<-spp_keep$Species #30 total 
+spp_tab0<-subset(spp_tab0, nobs>1000) #remove unclear hybrids
+spp_keep<-spp_tab0$Species
 
-
-#remove any tree spp with <100 total obs  
 tree_dat<-filter(tree_dat, Species %in% spp_keep)
-
-#keep only major tree species 
-tree_dat<-subset(tree_dat, grepl('ABIE|THUJ|PSEU|PINU|PICE|CALL|TAX|LARI|TSUG|ACER|POPU|ALNURUB|BETUPAP|
-                                 ACERMAC|ARBU|QUER', Species))
 
 #look at nobs of spp by site units 
 spp_tab<-tree_dat%>%
-                group_by(Species, SiteUnit, bgc,Site)%>%
+                group_by(Species, SiteUnit)%>%
                 summarise(nobs=n())
 
 #filter anything with n obs <3 (need for random effect)
-remove<-subset(spp_tab, nobs<2)
-tree_dat<-anti_join(tree_dat, remove)
-spp_tab<-anti_join(spp_tab, remove)
+#remove<-subset(spp_tab, nobs<2)
+#tree_dat<-anti_join(tree_dat, remove)
+#spp_tab<-anti_join(spp_tab, remove)
 
 #look at enviro vars of interest
 #which params are consistently measured?
@@ -75,18 +118,18 @@ cols_keep<-cols_keep$cols
 tree_dat<-dplyr::select(tree_dat, all_of(cols_keep))
 
 #remove info not using
-tree_dat<-dplyr::select(tree_dat, 
-    -FSRegionDistrict, -SV_FloodPlain, -ProvinceStateTerritory, 
-    -NtsMapSheet, -Flag, -SpeciesListComplete, -UpdatedFromCards, -Zone, -Ecosection)
-names(tree_dat)
+#tree_dat<-dplyr::select(tree_dat, 
+#    -FSRegionDistrict, -SV_FloodPlain, -ProvinceStateTerritory, 
+#    -NtsMapSheet, -Flag, -SpeciesListComplete, -UpdatedFromCards, -Zone, -Ecosection)
+#names(tree_dat)
 
 #aspect, slope 
-sort(names(tree_dat))
-str(tree_dat)#what are continuous/numeric?? elevation, slope, aspect, substrate categories 
-hist(tree_dat$Aspect)#Should be from 0-360
-tree_dat<-subset(tree_dat, Aspect<361)
-hist(tree_dat$SlopeGradient)#Should be from 0-100??
-tree_dat<-subset(tree_dat, SlopeGradient<101)
+#sort(names(tree_dat))
+#str(tree_dat)#what are continuous/numeric?? elevation, slope, aspect, substrate categories 
+#hist(tree_dat$Aspect)#Should be from 0-360
+#tree_dat<-subset(tree_dat, Aspect<361)
+#hist(tree_dat$SlopeGradient)#Should be from 0-100??
+#tree_dat<-subset(tree_dat, SlopeGradient<101)
 
 # SNR, aSMR 
 unique(tree_dat$NutrientRegime)# need to finalize calls on all
@@ -175,6 +218,10 @@ unique(tree_dat$NutrientRegime_clean)
 #remove rows with NAs in Moisture/Nutrient regimes 
 tree_dat<- subset(tree_dat, NutrientRegime_clean!="NA"& MoistureRegime_clean!="NA") #2k rows 
 
+#filter out poor quality 
+tree_dat<-subset(tree_dat, !grepl("poor|Poor|POOR", SitePlotQuality))
+tree_dat<-subset(tree_dat, !grepl("omit|Omit", UserSiteUnit))
+
 #look at other veg vars of interest
 hist(tree_dat$StrataCoverTree) #normally distributed-ish  #is this all tree spp combined??
 hist(tree_dat$StrataCoverTotal) #what is this?
@@ -185,10 +232,6 @@ hist(log(tree_dat$TotalA)) #not bad...
 library(lubridate)
 tree_dat<-mutate(tree_dat,year=year(Date))
 names(tree_dat)
-
-#fix species names 
-tree_dat<-mutate(tree_dat, Species=if_else(Species=="PINUCON1"|Species=="PINUCON2","PINUCON", Species))%>%
-  mutate(Species=if_else(Species=="PSEUMEN1"|Species=="PSEUMEN2","PSEUMEN", Species))
 
 unique(tree_dat$Species)
 

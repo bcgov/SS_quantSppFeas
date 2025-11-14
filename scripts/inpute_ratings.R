@@ -73,4 +73,4 @@ BEC_nosuitx<-select(BEC_nosuitx,bgc,ss_nospace,suitability,spp,newsuit,
                    Latitude, Longitude,SuccessionalStatus, StructuralStage,SiteUnit, newsuit_ord, TotalAB) 
 
 write.csv(BEC_nosuitx, "data/imputed_suit_ratings.csv") 
-
+#imp<-read.csv("data/imputed_suit_ratings.csv") 
