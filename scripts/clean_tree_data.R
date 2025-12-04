@@ -246,10 +246,12 @@ gc()
 
 #plot most measured spp----- 
 #Western red Cedar 
-Cw<-subset(tree_dat, Species=='THUJPLI')  
-ggplot(Cw, aes(y=TotalA, x=year, color=MoistureRegime_clean))+
-  geom_point()+
-  facet_wrap(~GIS_BGC) 
+Cw<-subset(tree_dat, Species=='THUJPLI'& !is.na(Zone))  
+
+ggplot(Cw, aes(y=TotalA, x=year, color=Latitude))+
+  geom_point(alpha=0.2)+ 
+  geom_smooth(method='lm')+
+  facet_wrap(~Zone,  scales = "free_y") + ylab("Average plot canopy cover (%)")
 
 #Western Hemlock
 Hw<-subset(tree_dat, Species=='TSUGHET') 
@@ -271,16 +273,23 @@ ggplot(Fd, aes(y=TotalA, x=year, color=MoistureRegime_clean))+
   facet_wrap(~GIS_BGC)
 
 #Subalpine Fir
-Bl<-subset(tree_dat, Species=="ABIELAS") 
-ggplot(Bl, aes(y=TotalA, x=year, color=MoistureRegime_clean))+
-  geom_point()+
-  facet_wrap(~GIS_BGC)
+Bl<-subset(tree_dat, Species=="ABIELAS"& !is.na(Zone) & Zone!="BAFA" & Zone!="CMA"& Zone!="IMA"& Zone!="PP")
+ggplot(Bl, aes(y=TotalA, x=year, color=Zone))+
+  #geom_point()+ 
+  geom_smooth(method='lm')+
+  facet_wrap(~Zone,  scales = "free_y")
+
+ggplot(Bl, aes(y=TotalA, x=year, color=Latitude))+ #large declines in the ESSF- driven by what? 
+  geom_point(alpha=0.2)+ 
+  geom_smooth(method='lm')+
+  facet_wrap(~Zone,  scales = "free_y") + ylab("Average plot canopy cover (%)")
 
 #Lodgepole Pine 
 Pl<-subset(tree_dat, Species=="PINUCON") 
-ggplot(Pl, aes(y=TotalA, x=year, color=MoistureRegime_clean))+
-  geom_point()+
-  facet_wrap(~GIS_BGC)
+ggplot(Pl, aes(y=TotalA, x=year, color=Latitude))+ #large declines in the ESSF- driven by what? 
+  geom_point(alpha=0.2)+ 
+  geom_smooth(method='lm')+
+  facet_wrap(~Zone,  scales = "free_y") + ylab("Average plot canopy cover (%)")
 
 #Amabalis fir
 Ba<-subset(tree_dat, Species=="ABIEAMA") 
@@ -299,12 +308,37 @@ Yc<-subset(tree_dat, Species=="CALLNOO")
 ggplot(Yc, aes(y=TotalA, x=year, color=MoistureRegime_clean))+
   geom_point()+
   facet_wrap(~GIS_BGC)
+ggplot(Yc, aes(y=TotalA, x=year, color=Latitude))+ #large declines in the ESSF- driven by what? 
+  geom_point(alpha=0.2)+ 
+  geom_smooth(method='lm')+
+  facet_wrap(~Zone,  scales = "free_y") + ylab("Average plot canopy cover (%)")
 
 #Sitka Spruce 
 Ss<-subset(tree_dat, Species=="PICESIT")
+Sx<-subset(tree_dat,spp=="Sx")
+
 ggplot(Ss, aes(y=TotalA, x=year, color=MoistureRegime_clean))+
   geom_point()+
   facet_wrap(~GIS_BGC)
+
+ggplot(Sx, aes(y=TotalA, x=year, color=Latitude))+ #large declines in the ESSF- driven by what? 
+  geom_point(alpha=0.2)+ 
+  geom_smooth(method='lm')+
+  facet_wrap(~Zone,  scales = "free_y") + ylab("Average plot canopy cover (%)")
+
+ggplot(Sx, aes(y=TotalA, x=year, color=Zone))+ #large declines in the ESSF- driven by what? 
+  geom_point(alpha=0.2)+ 
+  geom_smooth(method='lm')+
+  facet_wrap(~Zone,  scales = "free_y") + ylab("Average plot canopy cover (%)")
+
+ggplot(Sx, aes(y=TotalA, x=year, color=Zone))+ #large declines in the ESSF- driven by what? 
+  geom_point(alpha=0.2)+ 
+  geom_smooth(method='lm')+
+  #facet_wrap(~Zone,  scales = "free_y") + 
+  ylab("Average plot canopy cover (%)")
+
+Sxmod<-lmerTest::lmer(log(TotalA)~ scale(year)*Zone + (1|SubZone) + (1|StructuralStage), data = Sx)
+summary(Sxmod)
 
 #Trembling Aspen 
 At<-subset(tree_dat, Species=="POPUTRE")
