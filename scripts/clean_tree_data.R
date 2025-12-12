@@ -16,9 +16,10 @@
 # Remove any plots where SMR and SNR were not recorded
 # For all plots without exact call for Soil moisture and Soil Nutrient regime (rSMR & rSNR) used ruleset to move up/down 
 # consistently moving towards zonal e.g. if 3-4 -> 4, if 4-5 -> 4, if 6-7->6, if 1-2-> 2 
+# Assigns exact call on structural stage- based on primary assignment or average ex 4/5-> 4, 5/4-> 5, 4/6->5, 5/7->6
+# informed with Successional status or Plot representing if not recorded (e.g. young =5, mature/climax =6, old = 7). 
 # plots data for each spp 
 # save output as Rdata file (tree_data_cleaned.Rdata)
-
 
 #libraries 
 library(tidyverse)
@@ -167,10 +168,10 @@ tree_dat<-mutate(tree_dat, NutrientRegime_clean = case_when(NutrientRegime=="A" 
                                       NutrientRegime=="M" ~ "C",
                                       NutrientRegime=="P" ~ "B",
                                       NutrientRegime=="R" ~ "D",
-                                      NutrientRegime=="3" ~ "NA",
-                                      NutrientRegime=="6" ~ "NA"))
+                                      NutrientRegime=="3" ~ NA,
+                                      NutrientRegime=="6" ~ NA))
 
-tree_dat<-mutate(tree_dat, MoistureRegime_clean = case_when(MoistureRegime=="$" ~ "NA",
+tree_dat<-mutate(tree_dat, MoistureRegime_clean = case_when(MoistureRegime=="$" ~ NA,
                                                     MoistureRegime=="0" ~ "0",
                                                     MoistureRegime=="0-1" ~ "1",
                                                     MoistureRegime=="0+" ~ "0",
@@ -213,24 +214,130 @@ tree_dat<-mutate(tree_dat, MoistureRegime_clean = case_when(MoistureRegime=="$" 
                                                     MoistureRegime=="7" ~ "7",
                                                     MoistureRegime=="7-" ~ "7",
                                                     MoistureRegime=="8" ~ "8",
-                                                    MoistureRegime=="PM" ~ "NA"))
+                                                    MoistureRegime=="PM" ~ NA))
 
 #merge back to tree data
 unique(tree_dat$MoistureRegime_clean)
 unique(tree_dat$NutrientRegime_clean)
 
 #remove rows with NAs in Moisture/Nutrient regimes 
-tree_dat<- subset(tree_dat, NutrientRegime_clean!="NA"& MoistureRegime_clean!="NA") #2k rows 
+tree_dat<- subset(tree_dat, !is.na(NutrientRegime_clean) & !is.na(MoistureRegime_clean))  
 
 #filter out poor quality 
-tree_dat<-subset(tree_dat, !grepl("poor|Poor|POOR", SitePlotQuality))
-tree_dat<-subset(tree_dat, !grepl("omit|Omit", UserSiteUnit))
+tree_dat<-subset(tree_dat,!grepl("poor", SitePlotQuality, ignore.case = TRUE))
+tree_dat<-subset(tree_dat,!grepl("omit", UserSiteUnit, ignore.case = TRUE))
+x<-subset(tree_dat, SiteSeries=='omit')
+tree_dat<-anti_join(tree_dat, x)
 
-#look at other veg vars of interest
-hist(tree_dat$StrataCoverTree) #normally distributed-ish  #is this all tree spp combined??
-hist(tree_dat$StrataCoverTotal) #what is this?
-hist(tree_dat$TotalA) #right skewed - beta dist?
-hist(log(tree_dat$TotalA)) #not bad... 
+# Structural stage 
+tree_dat$SuccessionalStatus<-tolower(tree_dat$SuccessionalStatus)
+sort(unique(tree_dat$SuccessionalStatus))
+sort(unique(tree_dat$StructuralStage)) # need to finalize calls on all 
+
+
+tree_dat<-mutate(tree_dat, StructuralStage_clean = case_when(grepl("1", StructuralStage) ~ 1,
+                                                             grepl("2", StructuralStage) ~ 2,
+                                                             grepl("3", StructuralStage) ~ 3, 
+                                                             grepl("4", StructuralStage) ~ 4,
+                                                             grepl("5", StructuralStage) ~ 5,
+                                                             grepl("6", StructuralStage) ~ 6,
+                                                             grepl("7", StructuralStage) ~ 7, 
+                                                             grepl("7", SuccessionalStatus) ~ 7, 
+                                                             grepl("y", SuccessionalStatus) ~ 5,
+                                                             grepl("m", SuccessionalStatus) ~ 6,
+                                                             grepl("o", SuccessionalStatus) ~ 7,
+                                                             grepl("n", SuccessionalStatus) ~ 1,
+                                                             grepl("p", SuccessionalStatus) ~ 4,
+                                                             grepl("d", SuccessionalStatus) ~ 7,
+                                                             grepl("Stg.= 7", PlotRepresenting) ~ 7,
+                                                                                       TRUE~NA))
+
+
+#clean up some manually
+tree_dat$StructuralStage_clean[tree_dat$StructuralStage=='750'|tree_dat$StructuralStage=='76'|tree_dat$StructuralStage=='7(2a)'] <- 7 	
+tree_dat$StructuralStage_clean[tree_dat$StructuralStage=='7(3b)'|tree_dat$StructuralStage=='3a/7'|tree_dat$StructuralStage==''] <- 7 	
+tree_dat$StructuralStage_clean[tree_dat$StructuralStage=='7/3b'|tree_dat$StructuralStage=='7/3a'|tree_dat$StructuralStage=='7/2a'] <- 7
+tree_dat$StructuralStage_clean[tree_dat$StructuralStage=='6m.1'|tree_dat$StructuralStage=='3b(6)'|tree_dat$StructuralStage=='2b-6']<-6
+tree_dat$StructuralStage_clean[tree_dat$StructuralStage=='6/3b'|tree_dat$StructuralStage=='6/2b'|tree_dat$StructuralStage=='6(3b)']<-6
+tree_dat$StructuralStage_clean[tree_dat$StructuralStage=='5/3b'|tree_dat$StructuralStage=='5/3a'|tree_dat$StructuralStage=='5/2d']<-5
+tree_dat$StructuralStage_clean[tree_dat$StructuralStage=='5(4)'|tree_dat$StructuralStage=='5-3B'|tree_dat$StructuralStage== '3b-5']<-5
+tree_dat$StructuralStage_clean[tree_dat$StructuralStage=='3a2b'|tree_dat$StructuralStage=='3b(2)'|tree_dat$StructuralStage== '3/2']<-3
+tree_dat$StructuralStage_clean[tree_dat$StructuralStage=='3a/2b']<-3
+tree_dat$StructuralStage_clean[tree_dat$StructuralStage=='4/6']<-5
+tree_dat$StructuralStage_clean[tree_dat$StructuralStage=='5/7']<-6
+#climax
+tree_dat$StructuralStage_clean[tree_dat$SuccessionalStatus=='cc'|tree_dat$SuccessionalStatus=='ec'|tree_dat$SuccessionalStatus=='c']<-6
+tree_dat$StructuralStage_clean[tree_dat$SuccessionalStatus=='ecc'|tree_dat$StructuralStage=='C'|tree_dat$StructuralStage=='MEC']<-6
+idx <- !is.na(tree_dat$PlotRepresenting) &  is.na(tree_dat$StructuralStage_clean) &
+  grepl("climax|MCC-", tree_dat$PlotRepresenting, ignore.case = TRUE)
+tree_dat$StructuralStage_clean[idx] <- 6
+rm(idx)
+#early seral 
+tree_dat$StructuralStage_clean[tree_dat$SuccessionalStatus=='es'|tree_dat$SuccessionalStatus=='s'|tree_dat$StructuralStage=='S']<-5 
+#oldgrowth 
+idx <- !is.na(tree_dat$PlotRepresenting) &
+  grepl("old growth|old  growth", tree_dat$PlotRepresenting, ignore.case = TRUE)
+tree_dat$StructuralStage_clean[idx] <- 7
+rm(idx)
+#mature
+tree_dat$StructuralStage_clean[tree_dat$StructuralStage=='mf'|tree_dat$StructuralStage=="M"|tree_dat$StructuralStage=="ms"|tree_dat$PlotRepresenting=="MF"]<-6
+idx <- !is.na(tree_dat$PlotRepresenting) &  is.na(tree_dat$StructuralStage_clean) &
+  grepl("mature|MAT.SERAL", tree_dat$PlotRepresenting, ignore.case = TRUE)
+tree_dat$StructuralStage_clean[idx] <- 6
+rm(idx)
+#young
+idx <- !is.na(tree_dat$PlotRepresenting) &  is.na(tree_dat$StructuralStage_clean) &
+  grepl("young|YS|YCC-|Prim. seral|MEDIUM SERAL", tree_dat$PlotRepresenting, ignore.case = TRUE)
+tree_dat$StructuralStage_clean[idx] <- 5
+rm(idx)
+#PS
+idx <- !is.na(tree_dat$PlotRepresenting) &  is.na(tree_dat$StructuralStage_clean) &
+  grepl("pole-sapling", tree_dat$PlotRepresenting, ignore.case = TRUE)
+tree_dat$StructuralStage_clean[idx] <- 4
+rm(idx)
+#krummholz/parkland
+idx <- !is.na(tree_dat$PlotRepresenting) &  is.na(tree_dat$StructuralStage_clean) &
+  grepl("krumm|parkland", tree_dat$PlotRepresenting, ignore.case = TRUE)
+tree_dat$StructuralStage_clean[idx] <- 3
+rm(idx)
+#grassland/herb 
+idx <- !is.na(tree_dat$PlotRepresenting) &  is.na(tree_dat$StructuralStage_clean) &
+  grepl("herb|meadow|forb stage", tree_dat$PlotRepresenting, ignore.case = TRUE)
+tree_dat$StructuralStage_clean[idx] <- 3
+rm(idx)
+#shrub 
+idx <- !is.na(tree_dat$PlotRepresenting) &  is.na(tree_dat$StructuralStage_clean) &
+  grepl("shrub", tree_dat$PlotRepresenting, ignore.case = TRUE)
+tree_dat$StructuralStage_clean[idx] <- 3
+rm(idx)
+
+#other specifics 
+tree_dat$StructuralStage_clean[tree_dat$PlotRepresenting=="6 yr beetle killed   Pl - Shep can - Vacc mem - juni com on Gl.GL with gleying at depth"]<-3
+tree_dat$StructuralStage_clean[tree_dat$PlotRepresenting=="very low forest (7m) with large stem diameters. Exposed coastal lowlands with stunted forest"]<-3
+tree_dat$StructuralStage_clean[tree_dat$PlotRepresenting=="Dr primary seral"]<-5
+tree_dat$StructuralStage_clean[tree_dat$PlotRepresenting=="60 yr 0od Pl stand"]<-5
+tree_dat$StructuralStage_clean[tree_dat$PlotRepresenting=="HBS 541 older immat. second growth"]<-5
+tree_dat$StructuralStage_clean[tree_dat$PlotRepresenting=="80 yr old"]<-6
+tree_dat$StructuralStage_clean[tree_dat$PlotRepresenting=="FOREST:  AGE = 80-100, HT = 10 - 19m, CROWN CLOSURE = 56 - 65 %."]<-6
+tree_dat$StructuralStage_clean[tree_dat$PlotRepresenting=="FOREST:  AGE = 80-100, HT = 19 - 28m, CROWN CLOSURE = 36 - 45%."]<-6
+tree_dat$StructuralStage_clean[tree_dat$PlotRepresenting=="FOREST, AGE = 80-100yrs, HT = 19-28m"]<-6
+tree_dat$StructuralStage_clean[tree_dat$PlotRepresenting=="FOREST - AGE 81 -100, HT 28M - 37M , CROWN CLOSURE: 36 - 45."]<-6
+tree_dat$StructuralStage_clean[tree_dat$PlotRepresenting=="old forest"]<-7
+tree_dat$StructuralStage_clean[tree_dat$PlotRepresenting=="CyHwm 921 o.g. opening phase"]<-7
+tree_dat$StructuralStage_clean[tree_dat$PlotRepresenting=="FOREST:  AGE = 140-250, HT = 19-28, CROWN CLOSURE = 26 - 35."]<-7
+tree_dat$StructuralStage_clean[tree_dat$PlotRepresenting=="FOREST:  AGE = 250+, HT = 28-37m,"]<-7
+tree_dat$StructuralStage_clean[tree_dat$PlotRepresenting=="FOREST:  AGE = 100-120, HT = 19-28 m, CROWN CLOSURE = 16 - 25%,"]<-7
+tree_dat$StructuralStage_clean[tree_dat$PlotRepresenting=="CRK GULLY FOREST:  AGE = 120-140, HT = 37-46."]<-7
+tree_dat$StructuralStage_clean[tree_dat$PlotRepresenting=="FOREST:  AGE = 100-120, HT = 19-28 m, CROWN CLOSURE = 16 - 25%"]<-7
+tree_dat$StructuralStage_clean[tree_dat$PlotRepresenting=="CRK GULLY FOREST:  AGE = 120-140, HT = 37-46"]<-7
+
+
+check<-select(tree_dat, SuccessionalStatus, StructuralStage_clean, StructuralStage_clean,PlotRepresenting)%>%distinct(.)
+x<-subset(tree_dat, is.na(StructuralStage_clean))
+unique(x$StructuralStage)
+
+#remove if no assignment possible
+tree_dat<-subset(tree_dat, !is.na(StructuralStage_clean))
 
 #create a year column
 library(lubridate)

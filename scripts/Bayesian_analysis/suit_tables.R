@@ -10,11 +10,15 @@
 #limitations under the License.
 
 #This script does the following:
-#pulls in most recent feasibility tables 
-#subsets for BC feas ratings 
-#merges feas values with BC BEC plot data (tree abundance) & saves output (feasibility_abundance_data.Rdata)
+#pulls in most recent suitability tables 
+#subsets for BC suit ratings 
+#merges suit ratings with BC BEC plot data (tree abundance) & saves output (feasibility_abundance_data.Rdata)
 #creates list of data for which we have BEC plot abundances but no feas ratings (BEC_missing_feas.csv)
 #calculates and plots mean abundances by feas rating for top spp
+#quality filters so that all suitability ratings had a minimum of 2 plots for validation 
+#creates a unique variable for the 15 edatopic spaces for modeling 
+#saves dataset for modeling validation 
+#OPTIONAL 
 #pulls in plot level climate data (from climr_getdata_plots.R)
 #runs PCA on climate vars and merges back with feas & abundance values (sourced-climPCAs.R)
 #saves rds file for further quantitative validation/modeling (feas_abund_clim_data.Rdata)
@@ -27,20 +31,22 @@ library(tidyverse)
 
 #load feasibility data---- 
 #feas.dat<-read.csv("data/Suitability_v13_19.csv") #v13_19 updated with Ecologist review as of May 15, 2025
-feas.dat<-read.csv("data/Suitability_v13_22.csv") #v13_22 updated with Craig Delong review & inputed ratings Oct 1, 2025
+#feas.dat<-read.csv("data/Suitability_v13_22.csv") #v13_22 updated with Craig Delong review & inputed ratings Oct 1, 2025
+feas.dat<-read.csv("data/Suitability_v13_24.csv") #v13_24 updated with Craig Delong & other review & non reviewed inputed ratings removed Dec 4, 2025
+
 feas.dat<-subset(feas.dat, spp!='X')#remove any with no species defined 
 
 feas.dat<-mutate(feas.dat, newsuit=if_else(is.na(newsuit), suitability, newsuit))#if not updated, use previous rating 
 
 
 #take out the US and alberta stuff because it won't match plot data
-feas.dat.sub<-filter(feas.dat, !grepl('_OC|_WC|_CA|_OR|_WA|_ID|_MT|_CA|_WY|_CO|_NV|UT|BSJP|abE|abN|abS|abC|	MGPmg|
+feas.dat<-filter(feas.dat, !grepl('_OC|_WC|_CA|_OR|_WA|_ID|_MT|_CA|_WY|_CO|_NV|UT|BSJP|abE|abN|abS|abC|	MGPmg|
  MGPdm|SBAP|SASbo|BWBScmC|BWBScmE|BWBScmNW|BWBScmW|BWBSdmN|BWBSdmS|BWBSlbE|BWBSlbN|BWBSlbW|BWBSlf|BWBSnm|BWBSpp|BWBSub|BWBSuf', ss_nospace))
 
 #load BEC plot data
 load(file="data/tree_data_cleaned_updated.Rdata") 
 #join BEC data with suitability data----
-feas.dat.sub<-rename(feas.dat.sub, ss_nospace_final=ss_nospace)
+feas.dat.sub<-rename(feas.dat, ss_nospace_final=ss_nospace)
 feas.dat.subx<-left_join(feas.dat.sub, tree_dat_sub,by = c('ss_nospace_final', 'spp'),relationship = "many-to-many")  
 feas.dat.suby<-subset(feas.dat.subx,!is.na(TotalA)| !is.na(TotalB))
 
@@ -81,17 +87,18 @@ BEC_missing_feas$X<-NULL
 
 #plot by spp ----
 #create BGC zone column
-feas.dat.sub<-mutate(feas.dat.sub, zone= case_when(grepl('ICH', ss_nospace)~"ICH",grepl('ESSF', ss_nospace)~"ESSF", grepl('MS', ss_nospace)~"MS",
-                                grepl('SBPS', ss_nospace)~"SBPS", grepl('BAFA', ss_nospace)~"BAFA", grepl('CWH', ss_nospace)~"CWH", grepl('IDF', ss_nospace)~"IDF",
-                                grepl('BG', ss_nospace)~"BG", grepl('ESSF', ss_nospace)~"ESSF", grepl('CDF', ss_nospace)~"CDF", grepl('SBS', ss_nospace)~"SBS", 
-                                grepl('MH', ss_nospace)~"MH", grepl('CMA', ss_nospace)~"CMA", grepl('PP', ss_nospace)~"PP", grepl('BWBS', ss_nospace)~"BWBS", TRUE~ NA))
+feas.dat.sub$Zone<-NULL #remove old column-incomplete 
+feas.dat.sub<-mutate(feas.dat.sub, zone= case_when(grepl('ICH', ss_nospace)~"ICH",grepl('ESSF', ss_nospace)~"ESSF", grepl('MS', ss_nospace)~"MS", grepl('SWB', ss_nospace)~"SWB", 
+                                                   grepl('SBPS', ss_nospace)~"SBPS", grepl('BAFA', ss_nospace)~"BAFA", grepl('CWH', ss_nospace)~"CWH", grepl('IDF', ss_nospace)~"IDF",
+                                                   grepl('BG', ss_nospace)~"BG", grepl('ESSF', ss_nospace)~"ESSF", grepl('CDF', ss_nospace)~"CDF", grepl('SBS', ss_nospace)~"SBS", 
+                                                   grepl('MH', ss_nospace)~"MH", grepl('CMA', ss_nospace)~"CMA", grepl('PP', ss_nospace)~"PP", grepl('BWBS', ss_nospace)~"BWBS", TRUE~ NA))
 
 #calculate average abundances by feas scores
 avgs<-group_by(feas.dat.sub, zone, bgc, ss_nospace, Species, spp, newsuit_ord)%>%
   summarise(mean_abund_ss=mean(TotalAB, na.rm = T), sd_abund_ss=sd(TotalAB, na.rm = T), nplots_ss=n())
 avgs<-mutate(avgs, sd_abund_ss =replace(sd_abund_ss, is.na(sd_abund_ss), 0))
 
-#spp plots 
+#spp plots ----
 #Ac- 
 ggplot(subset(avgs, spp=="Ac"), aes(x = newsuit_ord, y = mean_abund_ss, alpha=0.5))+
   #geom_point(position=position_jitterdodge(dodge.width=0.9)) +
@@ -122,11 +129,6 @@ ggplot(subset(avgs, spp=="Cw"), aes(x = newsuit_ord, y = mean_abund_ss, alpha=0.
   geom_point(position=position_jitterdodge(dodge.width=0.9)) +
   geom_boxplot(fill="white", position=position_dodge(width=0.9), alpha=0.5) +
   facet_wrap( ~ zone) + theme_bw() + theme(legend.position='none') +ggtitle("Cw")
-#Dr- 
-ggplot(subset(avgs, spp=="Dr"), aes(x = newsuit_ord, y = mean_abund_ss, alpha=0.5))+
-  geom_point(position=position_jitterdodge(dodge.width=0.9)) +
-  geom_boxplot(fill="white", position=position_dodge(width=0.9), alpha=0.5) +
-  facet_wrap( ~ zone) + theme_bw() + theme(legend.position='none')+ggtitle("Dr")
 #Ep-
 ggplot(subset(avgs, spp=="Ep"), aes(x = newsuit_ord, y = mean_abund_ss,  alpha=0.5))+
   geom_point(position=position_jitterdodge(dodge.width=0.9)) +
@@ -153,16 +155,6 @@ ggplot(subset(avgs, spp=="Lw"), aes(x = newsuit_ord, y = mean_abund_ss, alpha=0.
   geom_point(position=position_jitterdodge(dodge.width=0.9)) +
   geom_boxplot(fill="white", position=position_dodge(width=0.9), alpha=0.5) +
   facet_wrap( ~ zone) + theme_bw() + theme(legend.position='none') +ggtitle("Lw")
-#Mb-
-ggplot(subset(avgs, spp=="Mb"), aes(x = newsuit_ord, y = mean_abund_ss, alpha=0.5))+
-  geom_point(position=position_jitterdodge(dodge.width=0.9)) +
-  geom_boxplot(fill="white", position=position_dodge(width=0.9), alpha=0.5) +
-  facet_wrap( ~ zone) + theme_bw() + theme(legend.position='none') +ggtitle("Mb")
-#Pa- 
-ggplot(subset(avgs, spp=="Pa"), aes(x = newsuit_ord, y = mean_abund_ss, alpha=0.5))+
-  geom_point(position=position_jitterdodge(dodge.width=0.9)) +
-  geom_boxplot(fill="white", position=position_dodge(width=0.9), alpha=0.5) +
-  facet_wrap( ~ zone) + theme_bw() + theme(legend.position='none') +ggtitle("Pa")
 #Pl- 
 ggplot(subset(avgs, spp=="Pl"), aes(x = newsuit_ord, y = mean_abund_ss, alpha=0.5))+
   geom_point(position=position_jitterdodge(dodge.width=0.9)) +
@@ -178,11 +170,6 @@ ggplot(subset(avgs, spp=="Py"), aes(x = newsuit_ord, y = mean_abund_ss, alpha=0.
   geom_point(position=position_jitterdodge(dodge.width=0.9)) +
   geom_boxplot(fill="white", position=position_dodge(width=0.9), alpha=0.5) +
   facet_wrap( ~ zone) + theme_bw() + theme(legend.position='none') +ggtitle("Py")
-#Ra- 
-ggplot(subset(avgs, spp=="Ra"), aes(x = newsuit_ord, y = mean_abund_ss, alpha=0.5))+
-  geom_point(position=position_jitterdodge(dodge.width=0.9)) +
-  geom_boxplot(fill="white", position=position_dodge(width=0.9), alpha=0.5) +
-  facet_wrap( ~ zone) + theme_bw() + theme(legend.position='none') +ggtitle("Ra")
 #Sb- 
 ggplot(subset(avgs, spp=="Sb"), aes(x = newsuit_ord, y = mean_abund_ss, alpha=0.5))+
   geom_point(position=position_jitterdodge(dodge.width=0.9)) +
@@ -204,23 +191,120 @@ ggplot(subset(avgs, spp=="Yc"), aes(x = newsuit_ord, y = mean_abund_ss,  alpha=0
   geom_boxplot(fill="white", position=position_dodge(width=0.9), alpha=0.5) +
   facet_wrap( ~ zone) + theme_bw() + theme(legend.position='none') +ggtitle("Yc")
 
+#QA/QC----
+#filter plot data for quality 
+#throw out anything with only 1 plot or high variability but low coverage (i.e. mean<sd & <5 plots)?
+avgs<-mutate(avgs, sd_abund_ss =replace(sd_abund_ss, is.na(sd_abund_ss), 0))
+avgs<-subset(avgs, nplots_ss>1) 
+avgs$diff<-avgs$mean_abund_ss-avgs$sd_abund_ss
+avgs<-mutate(avgs, remove=if_else(nplots_ss<5 & diff<0, 'Y', 'N')) 
+avgs<-subset(avgs, remove=='N') 
+avgs$remove<-NULL
+avgs$diff<-NULL
 
+#look at prop of site series out of total by spp 
+nss<-select(feas.dat, spp)%>% group_by(spp)%>%summarise(n_site_series=n())
+avgs<-group_by(avgs, spp)%>%mutate(n_ss=n())%>%left_join(., nss)%>%mutate(prop_ss= n_ss/n_site_series)
+select(avgs, spp, prop_ss)%>%distinct(.)
+
+max(avgs$nplots_ss)
+mean(avgs$nplots_ss)
+median(avgs$nplots_ss)
+
+#pull out ss to review 
+#check ratings with relative cutoffs
+avgs<-mutate(avgs,review= case_when(newsuit_ord=="5" & mean_abund_ss>0~"Y",
+                                    newsuit_ord=="4" & mean_abund_ss>1~"Y",
+                                    newsuit_ord=="3" & mean_abund_ss> 10~"Y",
+                                    newsuit_ord=="3" & mean_abund_ss< 1~"Y",
+                                    newsuit_ord=="2" & mean_abund_ss> 25~"Y",
+                                    newsuit_ord=="2" & mean_abund_ss< 10~"Y",
+                                    newsuit_ord=="1" & mean_abund_ss<25~"Y",
+                                    TRUE~"N"))
+check<-subset(avgs, review=="Y")
+
+feas.dat.sub<-left_join(feas.dat.sub, avgs)
+feas.dat.validate<-subset(feas.dat.sub, !is.na(review))
+
+#don't review parkland subzones, should all be E3/E4
+feas.dat.validate<- mutate(feas.dat.validate, review= ifelse(grepl("p$", bgc), "N", review))
+
+
+#create edatopes----
+#create a unique variable for the 15 edatopic spaces for modeling 
+feas.dat.validate<- mutate(feas.dat.validate, NutrientRegime_clean=ifelse(NutrientRegime_clean=="F","E", NutrientRegime_clean))# there is no F
+feas.dat.validate<- mutate(feas.dat.validate, MoistureRegime_clean=ifelse(MoistureRegime_clean=="8","7", MoistureRegime_clean)) #lump 8s with 7s to match CCISS
+
+feas.dat.validate$edatope<-paste(feas.dat.validate$NutrientRegime_clean, feas.dat.validate$MoistureRegime_clean, sep="")
+feas.dat.validate<- mutate(feas.dat.validate, edatopex=case_when(edatope=="C3"|edatope=="C4"~"C34",
+                                                                 edatope=="C1"|edatope=="C2"|edatope=="C0"~"C12",
+                                                                 edatope=="C5"|edatope=="C6"|edatope=="C7"~"C56",
+                                                                 edatope=="A3"|edatope=="A4"|edatope=="B3"|edatope=="B4"~"AB34",
+                                                                 edatope=="A0"|edatope=="B0"|edatope=="A1"|edatope=="A2"|edatope=="B1"|edatope=="B2"~"AB12",
+                                                                 edatope=="A7"|edatope=="B7"|edatope=="A5"|edatope=="A6"|edatope=="B5"|edatope=="B6"~"AB56",
+                                                                 edatope=="D3"|edatope=="D4"|edatope=="E3"|edatope=="E4"~"DE34",
+                                                                 edatope=="D0"|edatope=="E0"|edatope=="D1"|edatope=="D2"|edatope=="E1"|edatope=="E2"~"DE12",
+                                                                 edatope=="D7"| edatope=="E7"|edatope=="D5"|edatope=="D6"|edatope=="E5"|edatope=="E6"~"DE56",
+                                                                 TRUE~NA))
+feas.dat.validate$edatope<-as.factor(feas.dat.validate$edatope)
+sort(unique(feas.dat.validate$edatope))
+sort(unique(feas.dat.validate$edatopex))
+
+#remove unused cols 
+names(feas.dat.validate)
+feas.dat.validate<-select(feas.dat.validate, -X, -SuccessionalStatus, -PlotRepresenting, -SiteUnit, -elev_check, -BECSiteUnit)
+
+
+#save output----
+save(feas.dat.validate, file="data/feas_abund_data_validate.Rdata")
+
+
+#set moist and nutrients as ordinal
+#feas.dat.sub$MoistureRegime_clean<-ordered(feas.dat.sub$MoistureRegime_clean, levels = c(8,7,6,5,4,3,2,1,0))
+#feas.dat.sub$NutrientRegime_clean<-ordered(feas.dat.sub$NutrientRegime_clean, levels = c("F", "E", "D", "C", "B", "A"))
+
+#Look at deviations between expert ratings and plot data 
+#-By edaphic space
+#-By expert 
+#-By species 
+#-By expected vs actual deviation
+
+ggplot(check, aes(x = newsuit_ord, y = mean_abund_ss, alpha=0.5))+
+  #geom_point(position=position_jitterdodge(dodge.width=0.9)) +
+  geom_boxplot(fill="white", position=position_dodge(width=0.9), alpha=0.5) +
+  facet_wrap( ~ spp, scales='free_y') + theme_bw() + theme(legend.position='none') 
+
+ggplot(feas.dat.validate, aes(x = newsuit_ord, y = TotalAB, alpha=0.5))+
+  #geom_point(position=position_jitterdodge(dodge.width=0.9)) +
+  geom_boxplot(fill="white", position=position_dodge(width=0.9), alpha=0.5) +
+  facet_wrap( ~ edatopex) + theme_bw() + theme(legend.position='none') 
+
+
+ggplot(subset(feas.dat.validate,review=="Y"), aes(y = spp))+ geom_bar()
+ggplot(subset(feas.dat.validate,review=="Y"), aes(y = zone))+ geom_bar()
+ggplot(subset(feas.dat.validate,review=="Y"), aes(y = edatope))+ geom_bar()
+ggplot(subset(feas.dat.validate,review=="Y"), aes(y = mod))+ geom_bar()
+
+
+  
 #pull in climate data ----
 ##select climate variables from BGC model
-climrVars = c("CMD_sm", "DDsub0_sp", "DD5_sp", "Eref_sm", "Eref_sp", "EXT", 
-              "MWMT", "NFFD_sm", "NFFD_sp", "PAS", "PAS_sp", "SHM", "Tave_sm", 
-              "Tave_sp", "Tmax_sm", "Tmax_sp", "Tmin", "Tmin_at", "Tmin_sm", 
-              "Tmin_sp", "Tmin_wt", "CMI", "PPT_MJ", "PPT_JAS", "CMD.total")
-names(feas.dat) 
+#climrVars = c("CMD_sm", "DDsub0_sp", "DD5_sp", "Eref_sm", "Eref_sp", "EXT", 
+#              "MWMT", "NFFD_sm", "NFFD_sp", "PAS", "PAS_sp", "SHM", "Tave_sm", 
+#              "Tave_sp", "Tmax_sm", "Tmax_sp", "Tmin", "Tmin_at", "Tmin_sm", 
+#              "Tmin_sp", "Tmin_wt", "CMI", "PPT_MJ", "PPT_JAS", "CMD.total")
+#names(feas.dat) 
 
 #from climr_getdata_plots.R
-load("data/clim_dat.plots.Rdata")
-clim_dat<-rename(clim_dat, PlotNumber=id)%>% select(c("PlotNumber", "PERIOD"), climrVars)
+#load("data/clim_dat.plots.Rdata")
+#clim_dat<-rename(clim_dat, PlotNumber=id)%>% select(c("PlotNumber", "PERIOD"), climrVars)
 
-feas.dat.clim<-left_join(feas.dat.sub, clim_dat)
+#feas.dat.clim<-left_join(feas.dat.sub, clim_dat)
 
-save(feas.dat.clim, file="data/feas_abund_clim_data.Rdata")
+#save(feas.dat.clim, file="data/feas_abund_clim_data.Rdata")
 
 #calculate PC axes for climate params----
-source("scripts/Bayesian_analysis/climPCAs.R")
+#source("scripts/Bayesian_analysis/climPCAs.R")
+
+
 

@@ -19,7 +19,6 @@
 #libraries
 library(tidyverse)
 
-
 #crosswalk tree (plot) data---- 
 #load BC tree data 
 load(file="data/tree_data_cleaned.Rdata") 
@@ -31,7 +30,7 @@ tree_dat_sub<-dplyr::select(tree_dat, PlotNumber, Species, spp, TotalA, TotalB,
                             SubZone,SiteSeries, #MapUnit, 
                             SitePlotQuality,NutrientRegime_clean,MoistureRegime_clean, 
                             Elevation, SlopeGradient, Aspect, MesoSlopePosition, Latitude, Longitude,
-                            SuccessionalStatus, StructuralStage)   
+                            StructuralStage_clean, SuccessionalStatus, PlotRepresenting)   
 str(tree_dat_sub)
 
 
@@ -313,10 +312,6 @@ tree_dat_sub<- filter(tree_dat_sub, ss_nospace_final!="SBSwk2/NA")%>%rbind(., tr
 #ESSF
 tree_dat_sub$ss_nospace_final[tree_dat_sub$PlotNumber=="O4CH036"] <- "ESSFmk/07"
 
-#filter out poor quality 
-tree_dat_sub<-subset(tree_dat_sub, !grepl("poor|Poor|POOR", SitePlotQuality))
-tree_dat_sub<-subset(tree_dat_sub, !grepl("omit|Omit", UserSiteUnit))
-
 #remove any stray spaces
 tree_dat_sub<-mutate(tree_dat_sub, ss_nospace_final= gsub(" ", "", ss_nospace_final))
 
@@ -344,6 +339,18 @@ tree_dat_sub<-rbind(tree_dat_sub, tree_dat_subuns)#bring back into main df
 rm(tree_dat_subuns, tree_dat_subuns2)
 
 tree_dat_sub<-subset(tree_dat_sub, !is.na(ss_nospace_final)& !grepl('NA', ss_nospace_final))#remove NA site series 
+
+#flag where zones appear outside elevation range - based on Meidinger & Pokar 1991
+tree_dat_sub<-dplyr::mutate(tree_dat_sub, Zone= case_when(grepl('ICH', ss_nospace)~"ICH",grepl('ESSF', ss_nospace)~"ESSF", grepl('MS', ss_nospace)~"MS", grepl('SWB', ss_nospace)~"SWB", 
+                grepl('SBPS', ss_nospace)~"SBPS", grepl('BAFA', ss_nospace)~"BAFA", grepl('CWH', ss_nospace)~"CWH", grepl('IDF', ss_nospace)~"IDF",
+                grepl('BG', ss_nospace)~"BG", grepl('ESSF', ss_nospace)~"ESSF", grepl('CDF', ss_nospace)~"CDF", grepl('SBS', ss_nospace)~"SBS", 
+                grepl('MH', ss_nospace)~"MH", grepl('CMA', ss_nospace)~"CMA", grepl('PP', ss_nospace)~"PP", grepl('BWBS', ss_nospace)~"BWBS", TRUE~ NA))
+
+tree_dat_sub<-mutate(tree_dat_sub, elev_check=case_when(Zone=="MS" & Elevation < 1000 ~ 'flag', Zone=="MH" & Elevation < 400 ~ 'flag', Zone=="CWH" & Elevation > 1050 ~ 'flag', 
+                                          Zone=="SWB" & Elevation < 900 ~ 'flag', Zone=="BWBS" & Elevation > 1300 ~ 'flag', Zone=="ESSF" & Elevation < 900 ~ 'flag', 
+                                           Zone=="SBPS" & Elevation < 850 ~ 'flag', Zone=="SBS" & Elevation > 1300 ~ 'flag', Zone=="ICH" & Elevation > 1500 ~ 'flag', 
+                                            Zone=="IDF" & Elevation > 1500 ~ 'flag', TRUE~'OK'))
+                                      
 
 #save cleaned & updated tree data----
 save(tree_dat_sub, file="data/tree_data_cleaned_updated.Rdata")
