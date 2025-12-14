@@ -2,42 +2,69 @@ library(marginaleffects)
 library(tidybayes)
 library(dplyr)
 
-# Fd ---
 #use intercept only model 
-newdata = expand_grid(edatope = unique(Fdfeas$edatope),
-                      bgc = unique(Fdfeas$bgc))
-#add missing edatope 
-edatope_miss<-data.frame(edatope="E0", bgc = unique(Fdfeas$bgc))
-newdata<-rbind(newdata, edatope_miss)
+#create bgc x edat table for preds
 
-preds <- Fd_postmod_int %>%
+#predict over data review=T
+newdata<-select(moddat, bgc, edatope, spp)%>%distinct(.) 
+
+#for novel preds- use expand grid-LATER
+#newdata = expand_grid(edatope = unique(moddat2$edatope),
+ #                     bgc = unique(moddat2$bgc))
+
+edat<-read.csv("data/Edatopic_v13_11.csv")
+edat<-rename(edat, edatope=Edatopic, bgc=BGC, ss_nospace=SS_NoSpace)%>%select(-Source)
+#newdata<-left_join(newdata, edat)
+#newdata<-(newdata, !is.na(ss_nospace))%>%select(-ss_nospace)%>%distinct(.) #remove things that aren't in edatopic table 
+
+#try preds for one spp 
+#newdata$spp<-"Cw"
+
+#add missing edatope 
+#edatope_miss<-data.frame(edatope="E0", bgc = unique(Fdfeas$bgc))
+#newdata<-rbind(newdata, edatope_miss)
+
+preds <- postmod_int %>%
   epred_draws(newdata,allow_new_levels=T,
               re_formula = NULL) 
 preds$mod<-'data + expert prior'
-preds2 <- Fd_priormod_int %>%
+preds2 <- priormod_int %>%
   epred_draws(newdata,allow_new_levels=T,
               re_formula = NULL) 
 preds2$mod<-'expert prior'
 
-preds_all<-rbind(preds, preds2)
+#preds_all<-rbind(preds, preds2)
+
 
 #join with edatopic table to convert to site series 
-edat<-read.csv("data/Edatopic_v13_11.csv")
-edat<-rename(edat, edatope=Edatopic, bgc=BGC, ss_nospace=SS_NoSpace)%>%select(-Source)
-preds_all<-left_join(preds_all, edat)
-preds_all$pred_abund<-preds_all$.epred^2
+preds<-left_join(preds, edat)
+preds$pred_abund<-exp(preds$.epred)
+hist(preds$pred_abund)
 
-#calculate average abundances by site series-RAW DATA
-avgs<-group_by(feas.dat.sub, bgc, ss_nospace, Species, spp, newsuit_ord)%>%
-summarise(mean_abund_ss=mean(TotalAB, na.rm = T), sd_abund_ss=sd(TotalAB, na.rm = T), nplots_ss=n())
-avgs<-mutate(avgs, sd_abund_ss =replace(sd_abund_ss, is.na(sd_abund_ss), 0))
-avgsFd<-subset(avgs, spp=="Fd")
+preds2<-left_join(preds2, edat)
+preds2$pred_abund<-exp(preds2$.epred)
+hist(preds2$pred_abund)
+
+#pull out average abundances by site series-RAW DATA
+avgs<-select(moddat, bgc, ss_nospace, Species, spp, newsuit_ord, mean_abund_ss,sd_abund_ss, nplots_ss)%>% distinct(.)
+avgs$edatope<-NULL
+avgs<-distinct(avgs)
 
 #calculate average abundances by site series-MODEL PREDS
 avgs2<-group_by(preds, ss_nospace)%>%
   summarise(pred_mean_abund_ss=mean(pred_abund, na.rm = T), pred_sd_abund_ss=sd(pred_abund, na.rm = T))
-updated_avgs<-left_join(avgsFd, avgs2)
-  
+#avgs2$pred_mean_abund_ss<-round(avgs2$pred_mean_abund_ss) #round up to next % point
+avgs2<-mutate(avgs2, pred_newsuit= case_when(pred_mean_abund_ss<1~4,
+                                             pred_mean_abund_ss>=1&pred_mean_abund_ss<10~3,
+                                             pred_mean_abund_ss>=10&pred_mean_abund_ss<25~2,
+                                             pred_mean_abund_ss>=25~1, TRUE~0))
+                                        
+updated_avgs<-left_join(avgs, avgs2)
+updated_avgs$newsuit<-as.numeric(as.character(updated_avgs$newsuit_ord))
+updated_avgs$diff<-updated_avgs$newsuit-updated_avgs$pred_newsuit  
+write.csv(updated_avgs, "outputs/expert_modelpred_ratings.csv")
+ggplot(data = updated_avgs, aes(y=diff))+ geom_bar() + facet_wrap(~spp)+ geom_hline(yintercept=0, color='red', lty=2, alpha=0.5)+ylab('diff expert - model pred Esuit')
+
 #coloredat#color by fitted or predicted 
 #check<-as.data.frame(ranef(Fd_postmod_int))
 #check$zone_edatope<-row.names(check)
@@ -48,17 +75,17 @@ updated_avgs<-left_join(avgsFd, avgs2)
 #plot predictions- back transform to %
 
 #expert model
-ggplot(subset(preds_all,bgc=="CDFmm"), aes(x=(.epred)^2, color=mod)) + geom_density(alpha=0.6) +
+ggplot(subset(preds_all,bgc=="CDFmm"), aes(x=(.epred)^3, color=mod)) + geom_density(alpha=0.6) +
   facet_wrap(~factor(edatope))+
     #levels = c("AB0", "C0", "DE0", "AB12", "C12", "DE12", "AB34", "C34", "DE34", "AB56", "C56", "DE56", "AB7", "C7", "DE7")), ncol=3)+
   theme_bw() + xlab("pred rel. abundance (%)") + ggtitle("Fd in CDFmm") #+ theme(legend.position = 'none') 
 
-ggplot(subset(preds_all,bgc=="BGxw1" & !is.na(ss_nospace)), aes(x=(.epred)^2, color=mod)) + geom_density(alpha=0.6) +
+ggplot(subset(preds_all,bgc=="BGxw1" & !is.na(ss_nospace)), aes(x=(.epred)^3, color=mod)) + geom_density(alpha=0.6) +
   facet_wrap(~factor(ss_nospace), scales="free_x")+
   #levels = c("AB0", "C0", "DE0", "AB12", "C12", "DE12", "AB34", "C34", "DE34", "AB56", "C56", "DE56", "AB7", "C7", "DE7")), ncol=3)+
   theme_bw() + xlab("pred rel. abundance (%)") + ggtitle("Fd in BGxw1") #+ theme(legend.position = 'none') 
 
-ggplot(subset(preds_all,bgc=="BGxw1"), aes(x=(.epred)^2, color=mod)) + geom_density(alpha=0.6) +
+ggplot(subset(preds_all,bgc=="BGxw1"), aes(x=(.epred)^3, color=mod)) + geom_density(alpha=0.6) +
   facet_wrap(~factor(edatope))+
   #levels = c("AB0", "C0", "DE0", "AB12", "C12", "DE12", "AB34", "C34", "DE34", "AB56", "C56", "DE56", "AB7", "C7", "DE7")), ncol=3)+
   theme_bw() + xlab("pred rel. abundance (%)") + ggtitle("Fd in BGxw1") #+ theme(legend.position = 'none') 
