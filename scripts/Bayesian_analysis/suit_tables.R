@@ -32,7 +32,8 @@ library(tidyverse)
 #load feasibility data---- 
 #feas.dat<-read.csv("data/Suitability_v13_19.csv") #v13_19 updated with Ecologist review as of May 15, 2025
 #feas.dat<-read.csv("data/Suitability_v13_22.csv") #v13_22 updated with Craig Delong review & inputed ratings Oct 1, 2025
-feas.dat<-read.csv("data/Suitability_v13_24.csv") #v13_24 updated with Craig Delong & other review & non reviewed inputed ratings removed Dec 4, 2025
+#feas.dat<-read.csv("data/Suitability_v13_24.csv") #v13_24 updated with Craig Delong & other review & non reviewed inputed ratings removed Dec 4, 2025
+feas.dat<-read.csv("data/Suitability_v13_25.csv") #v13_25 with Kristi essfwc3, wc7 updates Feb 2026
 
 feas.dat<-subset(feas.dat, spp!='X')#remove any with no species defined 
 
@@ -68,6 +69,8 @@ feas.dat.sub<-distinct(feas.dat.sub)
 #combine A & B layer
 feas.dat.sub<-mutate(feas.dat.sub, TotalA= replace_na(TotalA, 0), TotalB= replace_na(TotalB, 0))%>%
   mutate(TotalAB=TotalA + TotalB)
+
+feas.dat.sub<-subset(feas.dat.sub, !is.na(newsuit))
 
 save(feas.dat.sub, file="data/feasibility_abundance_data.Rdata") #save 
 
@@ -197,7 +200,7 @@ ggplot(subset(avgs, spp=="Yc"), aes(x = newsuit_ord, y = mean_abund_ss,  alpha=0
 avgs<-mutate(avgs, sd_abund_ss =replace(sd_abund_ss, is.na(sd_abund_ss), 0))
 avgs<-subset(avgs, nplots_ss>1) 
 avgs$diff<-avgs$mean_abund_ss-avgs$sd_abund_ss
-avgs<-mutate(avgs, remove=if_else(nplots_ss<5 & diff<0, 'Y', 'N')) 
+avgs<-mutate(avgs, remove=if_else(nplots_ss<4 & diff<0, 'Y', 'N')) 
 avgs<-subset(avgs, remove=='N') 
 avgs$remove<-NULL
 avgs$diff<-NULL
@@ -206,12 +209,13 @@ avgs$diff<-NULL
 nss<-select(feas.dat, spp)%>% group_by(spp)%>%summarise(n_site_series=n())
 avgs<-group_by(avgs, spp)%>%mutate(n_ss=n())%>%left_join(., nss)%>%mutate(prop_ss= n_ss/n_site_series)
 select(avgs, spp, prop_ss)%>%distinct(.)
+mean(avgs$prop_ss)
 
 max(avgs$nplots_ss)
 mean(avgs$nplots_ss)
 median(avgs$nplots_ss)
 
-#pull out ss to review 
+#flag ss to review 
 #check ratings with relative cutoffs
 avgs<-mutate(avgs,review= case_when(newsuit_ord=="5" & mean_abund_ss>0~"Y",
                                     newsuit_ord=="4" & mean_abund_ss>1~"Y",
@@ -221,10 +225,10 @@ avgs<-mutate(avgs,review= case_when(newsuit_ord=="5" & mean_abund_ss>0~"Y",
                                     newsuit_ord=="2" & mean_abund_ss< 10~"Y",
                                     newsuit_ord=="1" & mean_abund_ss<25~"Y",
                                     TRUE~"N"))
-check<-subset(avgs, review=="Y")
+check<-subset(avgs, review=="Y") #more than half ~3k/5k ratings 
 
 feas.dat.sub<-left_join(feas.dat.sub, avgs)
-feas.dat.validate<-subset(feas.dat.sub, !is.na(review))
+feas.dat.validate<-subset(feas.dat.sub, !is.na(review)) #remove anything from modeling dataset that didn't pass quality filter
 
 #don't review parkland subzones, should all be E3/E4
 feas.dat.validate<- mutate(feas.dat.validate, review= ifelse(grepl("p$", bgc), "N", review))

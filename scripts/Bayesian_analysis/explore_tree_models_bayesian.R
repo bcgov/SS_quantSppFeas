@@ -34,21 +34,13 @@ library(remotes)
 #library(NBZIMM) #zero infl gaussian
 #library(bhsdtr2) #hierarchical ordinal bayesian  
 
-#load feasibility plus abundance dataset  
+#load quality filtered feasibility plus abundance dataset  
 load(file="data/feas_abund_data_validate.Rdata")
-#load feasibility plus abundance dataset plus climate
-#load(file="data/feas_abund_clim_data.Rdata")
-#feas.dat.sub<-feas.dat.clim
 
-
-#subset to review=T or use all data 
+#subset to review=Y (from suit_tables.R) 
 #moddat<-subset(feas.dat.validate, review=="Y")
+#or use all data
 moddat<-feas.dat.validate
-
-#build prior model dataset
-hist(moddat$TotalAB)
-hist(log(moddat$TotalAB))#ok?
-hist(sqrt(moddat$TotalAB))#ok skewed
 
 
 # Define the ranges for each class- use area cutoffs from Table 3.3 LMH 25
@@ -60,9 +52,9 @@ moddat <- moddat %>%
                                newsuit=='2'~runif(n(), 10.01, 25), 
                                newsuit=='1'~runif(n(), 25.01, 60), TRUE~0))
 
-trans<-rcompanion::transformTukey(moddat$sim_abund, start=-1.5, statistic = 2)
-hist(trans)
-hist((moddat$sim_abund)^0.7)
+#trans<-rcompanion::transformTukey(moddat$sim_abund, start=-1.5, statistic = 2)
+#hist(trans)
+#hist((moddat$sim_abund)^0.7)
 
 # allow for 20% overlap between categories 
 moddat <- moddat %>%
@@ -73,11 +65,11 @@ moddat <- moddat %>%
                                newsuit=='1'~runif(n(), 22, 80), TRUE~0))
 
 #transform so less skewed 
-trans<-rcompanion::transformTukey(moddat$sim_abund, start=-1.5, statistic = 2)
-hist(trans)
-hist((moddat$sim_abund)^0.333)
-trans2<-rcompanion::transformTukey(moddat$TotalAB, start=-1.5, statistic = 2)
-hist(trans2)
+#trans<-rcompanion::transformTukey(moddat$sim_abund, start=-1.5, statistic = 2)
+#hist(trans)
+#hist((moddat$sim_abund)^0.333)
+#trans2<-rcompanion::transformTukey(moddat$TotalAB, start=-1.5, statistic = 2)
+#hist(trans2)
 
 #by level
 plot(as.factor(moddat$newsuit), moddat$sim_abund) 
@@ -86,9 +78,9 @@ plot(as.factor(moddat$spp), sqrt(moddat$TotalAB)) #do spp have different baselin
 #exp transform response
 moddat$sim_abund_cube<-(moddat$sim_abund)^(1/3)
 hist(moddat$sim_abund_cube)
-hist(moddat$TotalAB^(1/3))#ok skewed
+hist(moddat$TotalAB^(1/3))#ok
 moddat$TotalAB_cube<-(moddat$TotalAB)^(1/3)
-hist(moddat$TotalAB_cube)#ok skewed
+hist(moddat$TotalAB_cube)#ok 
 
 
 #fit brms models----
@@ -99,32 +91,33 @@ moddat2<-group_by(moddat, spp, bgc, edatope)%>%slice_sample(prop = 0.15) #run wi
 hist(moddat2$sim_abund_cube)
 hist(moddat2$TotalAB_cube)
 
-priormod_int<-brm(bf(sim_abund_cube~ (1|spp:bgc:edatope) + (1|spp) + (1|bgc) + (1|StructuralStage_clean)) , 
+priormod_int<-brm(bf(sim_abund_cube~ (1|spp:bgc:edatopex) + (1|spp) + (1|bgc) + (1|StructuralStage_clean)) , 
                      data = moddat,
                      family = skew_normal(),
-                     chains = 2, iter = 5000, warmup = 2000, 
+                     chains = 2, iter = 7000, warmup = 2000, 
                      control = list(adapt_delta = 0.9))
 pp_check(priormod_int)#looks ok 
 save(priormod_int, file= "outputs/brms/priormod_interceptonly.Rdata")
 summary(priormod_int)
 x<-ranef(priormod_int)
 
-priors<- c(set_prior("normal(2.6, 0.07)", class= "Intercept"), 
-             set_prior("normal(0.66, 0.01)", class = "sd", group = 'spp:bgc:edatope'), 
-             set_prior("normal(0.33, 0.02)", class = "sd", group = 'bgc'), 
-             set_prior("normal(0.27, 0.05)", class = "sd", group = 'spp'),
-              set_prior("normal(0.04, 0.03)", class = "sd", group = 'StructuralStage_clean'))#, 
-             #set_prior("normal(1.25,  0.01)", class="sigma"))#, 
+priors<- c(set_prior("normal(2.54, 0.09)", class= "Intercept"), 
+             set_prior("normal(0.66, 0.01)", class = "sd", group = 'spp:bgc:edatopex'), 
+             set_prior("normal(0.31, 0.02)", class = "sd", group = 'bgc'), 
+             set_prior("normal(0.28, 0.06)", class = "sd", group = 'spp'),
+             set_prior("normal(0.12, 0.06)", class = "sd", group = 'StructuralStage_clean'))#, 
+             #set_prior("normal(0.59,  0.01)", class="sigma"))#, 
              #set_prior("normal(1.0,  0.2)", class="alpha"))
 #posterior (data) model
-postmod_int<-brm(bf(TotalAB_cube~ (1|spp:bgc:edatope) + (1|spp) + (1|bgc) + (1|StructuralStage_clean)) , 
+postmod_int<-brm(bf(TotalAB_cube~ (1|spp:bgc:edatopex) + (1|spp) + (1|bgc) + (1|StructuralStage_clean)) , 
                     data = moddat,
                     family = skew_normal(), prior =priors, 
-                    chains = 2, iter = 5000, warmup = 2000, 
+                    chains = 2, iter = 7000, warmup = 2000, 
                     control = list(adapt_delta = 0.9))
 pp_check(postmod_int)
 save(postmod_int, file= "outputs/brms/postmod_interceptonly.Rdata")
 y<-ranef(postmod_int)
+summary(postmod_int)
 
 #kfold CV----
 looFd<-loo(Fd_postmod_int, save_psis = TRUE)
@@ -161,7 +154,7 @@ help("future.globals.maxSize", package = "future")
 Fd_priormod<-brm(bf(sim_abund_sqrt~ 0 + Intercept + PC1 + PC2 + PC3 + bgc + (PC1 + PC2 + PC3|edatope)) , 
   data = Fdfeas,
   family = skew_normal(),
-  chains = 2, iter = 5000, warmup = 2000, 
+  chains = 2, iter = 7000, warmup = 2000, 
   control = list(adapt_delta = 0.9))
 save(Fd_priormod, file= "outputs/brms/Fd_priormod_skew.Rdata")
 

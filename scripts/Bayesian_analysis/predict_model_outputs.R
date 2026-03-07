@@ -1,65 +1,105 @@
-library(marginaleffects)
 library(tidybayes)
 library(dplyr)
+library(brms)
 
-#use intercept only model 
-#create bgc x edat table for preds
+#load models 
+load("outputs/brms/postmod_interceptonly.Rdata")
+#load("outputs/brms/priormod_interceptonly.Rdata")
 
-#predict over data review=T
-newdata<-select(moddat, bgc, edatope, spp)%>%distinct(.) 
+moddat<-postmod_int$data
+#moddat2<-priormod_int$data
 
-#for novel preds- use expand grid-LATER
-#newdata = expand_grid(edatope = unique(moddat2$edatope),
- #                     bgc = unique(moddat2$bgc))
+#predict over fitted
+#option 1:brms posterior epred
+epreds<-posterior_epred(postmod_int, re.form = NULL)
+#rm(postmod_int)
+#gc()
+epreds<-as.data.frame(colMeans(epreds))
+epreds$pred_abund_cube<-epreds$`colMeans(epreds)`
+epreds$`colMeans(epreds)`<-NULL
+epreds$pred_abund<-(epreds$pred_abund_cube)^3
+save(epreds, file= "outputs/brms/postmod_epreds.Rdata")
 
+
+#option 2: tidybayes epred_draws (slower!!)
+#preds <- postmod_int %>%
+#  epred_draws(moddat,allow_new_levels=T,
+#              re_formula = NULL) 
+#preds$pred_abund<-NULL
+#preds$pred_abund<-(preds$.epred)^3
+#preds$TotalAB<-(preds$TotalAB_cube)^3
+#save(preds, file= "outputs/brms/postmod_epred_draws.Rdata")
+
+
+#join back with model data 
+moddat<-cbind(moddat, epreds)
+moddat$TotalAB<-(moddat$TotalAB_cube)^3
+
+#free up space 
+rm(postmod_int)
+rm(epreds)
+gc()
+
+#join with edatope
 edat<-read.csv("data/Edatopic_v13_11.csv")
 edat<-rename(edat, edatope=Edatopic, bgc=BGC, ss_nospace=SS_NoSpace)%>%select(-Source)
-#newdata<-left_join(newdata, edat)
-#newdata<-(newdata, !is.na(ss_nospace))%>%select(-ss_nospace)%>%distinct(.) #remove things that aren't in edatopic table 
+edat<- mutate(edat, edatopex=case_when(edatope=="C3"|edatope=="C4"~"C34",
+                                                                 edatope=="C1"|edatope=="C2"|edatope=="C0"~"C12",
+                                                                 edatope=="C5"|edatope=="C6"|edatope=="C7"~"C56",
+                                                                 edatope=="A3"|edatope=="A4"|edatope=="B3"|edatope=="B4"~"AB34",
+                                                                 edatope=="A0"|edatope=="B0"|edatope=="A1"|edatope=="A2"|edatope=="B1"|edatope=="B2"~"AB12",
+                                                                 edatope=="A7"|edatope=="B7"|edatope=="A5"|edatope=="A6"|edatope=="B5"|edatope=="B6"~"AB56",
+                                                                 edatope=="D3"|edatope=="D4"|edatope=="E3"|edatope=="E4"~"DE34",
+                                                                 edatope=="D0"|edatope=="E0"|edatope=="D1"|edatope=="D2"|edatope=="E1"|edatope=="E2"~"DE12",
+                                                                 edatope=="D7"| edatope=="E7"|edatope=="D5"|edatope=="D6"|edatope=="E5"|edatope=="E6"~"DE56",
+                                                                 TRUE~NA))
+unique(edat$edatopex)
+edat<-select(edat, -edatope)%>%distinct(.)
 
-#try preds for one spp 
-#newdata$spp<-"Cw"
+moddat<-left_join(moddat, edat)
 
-#add missing edatope 
-#edatope_miss<-data.frame(edatope="E0", bgc = unique(Fdfeas$bgc))
-#newdata<-rbind(newdata, edatope_miss)
+#averages by site series 
+moddat2<-group_by(moddat, spp, ss_nospace)%>%summarise(pred_abund_ss=mean(pred_abund), TotalAB_ss= mean(TotalAB))
 
-preds <- postmod_int %>%
-  epred_draws(newdata,allow_new_levels=T,
-              re_formula = NULL) 
-preds$mod<-'data + expert prior'
-preds2 <- priormod_int %>%
-  epred_draws(newdata,allow_new_levels=T,
-              re_formula = NULL) 
-preds2$mod<-'expert prior'
+#convert pred abund to esuit
+moddat2$pred_abund_ss<-round(moddat2$pred_abund_ss) #round up to next % point
+moddat2<-mutate(moddat2, pred_newsuit= case_when(pred_abund_ss<1~4,
+                                             pred_abund_ss>=1&pred_abund_ss<10~3,
+                                             pred_abund_ss>=10&pred_abund_ss<25~2,
+                                             pred_abund_ss>=25~1, TRUE~0))
+                                        
+#join to actual esuit
+esuit<-read.csv("data/suitability_v13_25.csv")
+esuit<-select(esuit, ss_nospace, spp, newsuit)
+moddat2<-left_join(moddat2, esuit)
 
-#preds_all<-rbind(preds, preds2)
+moddat2$suit_diff<-moddat2$newsuit-moddat2$pred_newsuit
+hist(moddat2$suit_diff)
+moddat2<-subset(moddat2, !is.na(suit_diff))
+moddat2$suit_diff2<-as.factor(moddat2$suit_diff)
 
+library(ggplot2)
+ggplot(data = subset(moddat2,suit_diff<3), aes(y=suit_diff))+
+  geom_bar() + facet_wrap(~spp)+ 
+  geom_hline(yintercept = 0,
+    color='red', lty=2, alpha=0.5)+
+  ylab('diff expert - model pred Esuit')
 
-#join with edatopic table to convert to site series 
-preds<-left_join(preds, edat)
-preds$pred_abund<-exp(preds$.epred)
-hist(preds$pred_abund)
-
-preds2<-left_join(preds2, edat)
-preds2$pred_abund<-exp(preds2$.epred)
-hist(preds2$pred_abund)
-
+#
 #pull out average abundances by site series-RAW DATA
-avgs<-select(moddat, bgc, ss_nospace, Species, spp, newsuit_ord, mean_abund_ss,sd_abund_ss, nplots_ss)%>% distinct(.)
+avgs<-select(moddat, bgc, ss_nospace, Species, spp, newsuit_ord, mean_abund_ss, nplots_ss)%>% distinct(.)
 avgs$edatope<-NULL
 avgs<-distinct(avgs)
 
-#calculate average abundances by site series-MODEL PREDS
-avgs2<-group_by(preds, ss_nospace)%>%
-  summarise(pred_mean_abund_ss=mean(pred_abund, na.rm = T), pred_sd_abund_ss=sd(pred_abund, na.rm = T))
-#avgs2$pred_mean_abund_ss<-round(avgs2$pred_mean_abund_ss) #round up to next % point
-avgs2<-mutate(avgs2, pred_newsuit= case_when(pred_mean_abund_ss<1~4,
-                                             pred_mean_abund_ss>=1&pred_mean_abund_ss<10~3,
-                                             pred_mean_abund_ss>=10&pred_mean_abund_ss<25~2,
-                                             pred_mean_abund_ss>=25~1, TRUE~0))
-                                        
+#pull out average abundances by site series-SIM DATA
+avgs3<-select(moddat, bgc, ss_nospace, Species, spp, sim_abund)%>%
+  group_by(spp, ss_nospace)%>%
+  summarise(sim_mean_abund_ss=mean(sim_abund, na.rm = T), sim_sd_abund_ss=sd(sim_abund, na.rm = T))
+avgs3$edatope<-NULL
+avgs3<-distinct(avgs3)
+
 updated_avgs<-left_join(avgs, avgs2)
+updated_avgs<-left_join(updated_avgs, avgs3)
 updated_avgs$newsuit<-as.numeric(as.character(updated_avgs$newsuit_ord))
 updated_avgs$diff<-updated_avgs$newsuit-updated_avgs$pred_newsuit  
 write.csv(updated_avgs, "outputs/expert_modelpred_ratings.csv")
@@ -173,4 +213,25 @@ ggplot(Cw_CWH_preds, aes(x=(.epred)^2, color=mod)) + geom_density(alpha=0.6) +
   theme_bw() + xlab("pred rel. abundance (%)") + ggtitle("Cw in CWH ") #+ theme(legend.position = 'none')
 
 
+#create bgc x edat table for preds
+#for novel preds- use expand grid-LATER
+#newdata = expand_grid(edatope = unique(moddat2$edatope),
+#                     bgc = unique(moddat2$bgc))
+#newdata<-left_join(newdata, edat)
+#newdata<-(newdata, !is.na(ss_nospace))%>%select(-ss_nospace)%>%distinct(.) #remove things that aren't in edatopic table 
 
+#try preds for one spp 
+#newdata$spp<-"Cw"
+
+#add missing edatope 
+#edatope_miss<-data.frame(edatope="E0", bgc = unique(Fdfeas$bgc))
+#newdata<-rbind(newdata, edatope_miss)
+
+
+#preds$mod<-'data + expert prior'
+#preds2 <- priormod_int %>%
+#  epred_draws(moddat2,allow_new_levels=T,
+#              re_formula = NULL) 
+#preds2$mod<-'expert prior'
+
+#preds_all<-rbind(preds, preds2)
