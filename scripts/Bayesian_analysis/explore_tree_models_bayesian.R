@@ -51,7 +51,7 @@ moddat <- moddat %>%
                                newsuit=='3'~runif(n(), 1.01, 10), 
                                newsuit=='2'~runif(n(), 10.01, 25), 
                                newsuit=='1'~runif(n(), 25.01, 60), TRUE~0))
-
+hist(moddat$sim_abund)
 #trans<-rcompanion::transformTukey(moddat$sim_abund, start=-1.5, statistic = 2)
 #hist(trans)
 #hist((moddat$sim_abund)^0.7)
@@ -63,13 +63,16 @@ moddat <- moddat %>%
                                newsuit=='3'~runif(n(), 0.8, 13), 
                                newsuit=='2'~runif(n(), 8.2, 40), 
                                newsuit=='1'~runif(n(), 22, 80), TRUE~0))
-
+hist(moddat$sim_abund)
 #transform so less skewed 
 #trans<-rcompanion::transformTukey(moddat$sim_abund, start=-1.5, statistic = 2)
 #hist(trans)
 #hist((moddat$sim_abund)^0.333)
 #trans2<-rcompanion::transformTukey(moddat$TotalAB, start=-1.5, statistic = 2)
 #hist(trans2)
+
+#remove E5s
+moddat<-subset(moddat, sim_abund>0)
 
 #by level
 plot(as.factor(moddat$newsuit), moddat$sim_abund) 
@@ -118,6 +121,10 @@ pp_check(postmod_int)
 save(postmod_int, file= "outputs/brms/postmod_interceptonly.Rdata")
 y<-ranef(postmod_int)
 summary(postmod_int)
+
+
+
+#OLD/NOT CURRENTLY USING----
 
 #kfold CV----
 looFd<-loo(Fd_postmod_int, save_psis = TRUE)
@@ -304,11 +311,6 @@ ggplot(ce3, aes(x=effect1__, y=estimate__))+ geom_line() +
   geom_ribbon(aes(ymin=lower__, ymax=upper__),  alpha=0.5, fill = "lightblue")+
   facet_wrap(~factor(edatope, levels = c("AB0", "C0", "DE0", "AB12", "C12", "DE12", "AB34", "C34", "DE34", "AB56", "C56", "DE56", "AB7", "C7", "DE7")), ncol=3)+
   theme_bw() + ylab("plot rel. abund (sqrt)") + xlab("PC3")
-
-
-
-
-
 
 
 
