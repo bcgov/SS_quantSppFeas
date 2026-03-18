@@ -2,6 +2,7 @@ library(tidybayes)
 library(dplyr)
 library(brms)
 library(bayesplot)
+library(ggplot2)
 
 #load models 
 load("outputs/brms/postmod_interceptonly.Rdata")
@@ -44,9 +45,9 @@ gc()
 
 #join with edatope
 edat<-read.csv("data/Edatopic_v13_11.csv")
+edat<-rename(edat, edatope=Edatopic, bgc=BGC, ss_nospace=SS_NoSpace)%>%select(-Source)
 edat<-filter(edat, !grepl('_OC|_WC|_CA|_OR|_WA|_ID|_MT|_CA|_WY|_CO|_NV|UT|BSJP|abE|abN|abS|abC|	MGPmg|
  MGPdm|SBAP|SASbo|BWBScmC|BWBScmE|BWBScmNW|BWBScmW|BWBSdmN|BWBSdmS|BWBSlbE|BWBSlbN|BWBSlbW|BWBSlf|BWBSnm|BWBSpp|BWBSub|BWBSuf', ss_nospace))
-edat<-rename(edat, edatope=Edatopic, bgc=BGC, ss_nospace=SS_NoSpace)%>%select(-Source)
 edat<- mutate(edat, edatopex=case_when(edatope=="C3"|edatope=="C4"~"C34",
                                                                  edatope=="C1"|edatope=="C2"|edatope=="C0"~"C12",
                                                                  edatope=="C5"|edatope=="C6"|edatope=="C7"~"C56",
@@ -80,7 +81,8 @@ esuit<-mutate(esuit, mod= case_when(mod=="HAK/SCS"|mod=="SCS/HAK"|mod=="SAS-HAK"
                                     mod=="DS & EBL"~ "DS", 
                                     mod==""~NA,
                                     mod=='cd'~"CD", TRUE ~mod))
-
+esuit<-filter(esuit, !grepl('_OC|_WC|_CA|_OR|_WA|_ID|_MT|_CA|_WY|_CO|_NV|UT|BSJP|abE|abN|abS|abC|	MGPmg|
+ MGPdm|SBAP|SASbo|BWBScmC|BWBScmE|BWBScmNW|BWBScmW|BWBSdmN|BWBSdmS|BWBSlbE|BWBSlbN|BWBSlbW|BWBSlf|BWBSnm|BWBSpp|BWBSub|BWBSuf', ss_nospace))
 moddat2<-left_join(moddat2, esuit)
 
 moddat2$suit_diff<-moddat2$newsuit-moddat2$pred_newsuit
@@ -89,7 +91,6 @@ hist(moddat2$suit_diff)
 moddat2$X<-NULL
 
 #visualize----
-library(ggplot2)
 moddat2<-tidyr::unite(moddat2, col = "spp_zone",c("spp", "Zone"), remove = F)
 moddat2<-tidyr::unite(moddat2, col = "zone_spp",c("Zone", "spp"), remove = F)
 
@@ -141,7 +142,6 @@ library(paletteer)
 ggplot(moddat3, aes(x=change_type, fill=as.factor(suit_diff)))+ geom_bar()+ 
   scale_fill_paletteer_d("ggsci::default_jama") + facet_wrap(~spp)
 
-
 #test set for Kiri
 Sx_test<-subset(moddat3, spp=='Sx')%>%select(spp, ss_nospace, bgc, newsuit, pred_newsuit, suit_diff, change_type)
 Sx_test$rule_newsuit <- round(apply(Sx_test[, c("newsuit", "pred_newsuit")], 1, median, na.rm = TRUE))
@@ -149,20 +149,22 @@ Sx_test<-mutate(Sx_test, rule_newsuit= ifelse(abs(suit_diff)>1, rule_newsuit, ne
 write.csv(Sx_test, "Sx_test.csv")
 
 
-
 #predict over new -----
-newdat<-tidyr::expand_grid(spp = unique(moddat$spp),
-                           bgc = unique(edat$bgc), 
-                           edatopex=unique(edat$edatopex),
-                           StructuralStage_clean=6) #just setting this to mature forest for novel preds 
+#load("outputs/brms/postmod_interceptonly.Rdata")
+#moddat0<-postmod_int$data
+#newdat<-tidyr::expand_grid(spp = unique(moddat0$spp),
+#                           bgc = unique(edat$bgc), 
+#                           edatopex=unique(edat$edatopex),
+#                           StructuralStage_clean=6) #just setting this to mature forest for novel preds 
 
-epreds_new<-posterior_epred(postmod_int, newdata = newdat, re.form = NULL, allow_new_levels= T)
-epreds_new<-as.data.frame(colMeans(epreds_new))
-epreds_new$pred_abund_cube<-epreds_new$`colMeans(epreds_new)`
-epreds_new$`colMeans(epreds_new)`<-NULL
-epreds_new$pred_abund<-(epreds_new$pred_abund_cube)^3
-#save(epreds_new, file= "outputs/brms/postmod_epreds_all.Rdata")
+#epreds_new<-posterior_epred(postmod_int, newdata = newdat, re.form = NULL, allow_new_levels= T)
+#epreds_new<-as.data.frame(colMeans(epreds_new))
+#epreds_new$pred_abund_cube<-epreds_new$`colMeans(epreds_new)`
+#epreds_new$`colMeans(epreds_new)`<-NULL
+#epreds_new$pred_abund<-(epreds_new$pred_abund_cube)^3
+#save(epreds_new, newdat, file= "outputs/brms/postmod_epreds_all.Rdata")
 
+load("outputs/brms/postmod_epreds_all.Rdata")
 #join back with new data 
 newdat2<-cbind(newdat, epreds_new)
 #join w/ ss
@@ -179,6 +181,7 @@ newdat2<-mutate(newdat2, pred_newsuit= case_when(pred_abund_ss<1~4,
 newdat3<-left_join(newdat2, esuit)
 newdat3<-mutate(newdat3, mod=ifelse(is.na(newsuit), 'brms_pred', mod))%>%
           mutate(newsuit=ifelse(is.na(newsuit), 5, newsuit))
+
 
 newdat3$suit_diff<-newdat3$newsuit-newdat3$pred_newsuit
 
@@ -210,7 +213,8 @@ ggplot(data = subset(newdat3, mod=="brms_pred"& Zone=="ICH"), aes(y=suit_diff))+
   ylab('diff expert - model pred Esuit') + ggtitle("ICH")
 
 #which of these have plot data? 
-newdat4<-left_join(newdat3, select(moddat2, spp, ss_nospace, bgc, TotalAB_ss)) #same ~2800 without ratings in moddat 2 over fitted
+newdat4<-left_join(newdat3, select(moddat2, spp, ss_nospace, bgc, TotalAB_ss)) 
+subset(newdat4, !is.na(TotalAB_ss)&mod=="brms_pred")#same ~2800 without ratings in moddat 2 over fitted
 
 #which of these have been rated at least once in same bgc- keep these novel preds? 
 newdat4$bgc<-NULL
@@ -218,6 +222,8 @@ newdat4<-tidyr::separate(data = newdat4, col = ss_nospace, into = 'bgc', remove 
 newdat5<-mutate(newdat4, rated= if_else(mod!="brms_pred"|is.na(mod), 1, 0))%>% 
 group_by(bgc, spp)%>%mutate(rated2=sum(rated))
 newdat5<-subset(newdat5, rated2>0)
+newdat5<-arrange(newdat5, spp, ss_nospace)
+
 newdat5$rated<-NULL
 newdat5$rated2<-NULL
 
