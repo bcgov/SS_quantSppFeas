@@ -11,70 +11,25 @@ load("outputs/brms/postmod_interceptonly.Rdata")
 moddat<-postmod_int$data
 #moddat2<-priormod_int$data
 
-#predict over fitted ----
-#option 1:brms posterior epred
-#epreds<-posterior_epred(postmod_int, re.form = NULL)
-#rm(postmod_int)
-#gc()
-#epreds<-as.data.frame(colMeans(epreds))
-#epreds$pred_abund_cube<-epreds$`colMeans(epreds)`
-#epreds$`colMeans(epreds)`<-NULL
-#epreds$pred_abund<-(epreds$pred_abund_cube)^3
-#save(epreds, file= "outputs/brms/postmod_epreds.Rdata")
-
-#option 2: tidybayes epred_draws (NOT USING- maxes out RAM)
-#preds <- postmod_int %>%
-#  epred_draws(moddat,allow_new_levels=T,
-#              re_formula = NULL) 
-#preds$pred_abund<-NULL
-#preds$pred_abund<-(preds$.epred)^3
-#preds$TotalAB<-(preds$TotalAB_cube)^3
-#save(preds, file= "outputs/brms/postmod_epred_draws.Rdata")
-
-#load saved model preds
-load("outputs/brms/postmod_epreds.Rdata")
-
-#join back with model data 
-moddat<-cbind(moddat, epreds)
-moddat$TotalAB<-(moddat$TotalAB_cube)^3
-
-#free up space 
-rm(postmod_int)
-rm(epreds)
-gc()
-
-#join with edatope
+#edatope data
 edat<-read.csv("data/Edatopic_v13_11.csv")
 edat<-rename(edat, edatope=Edatopic, bgc=BGC, ss_nospace=SS_NoSpace)%>%select(-Source)
 edat<-filter(edat, !grepl('_OC|_WC|_CA|_OR|_WA|_ID|_MT|_CA|_WY|_CO|_NV|UT|BSJP|abE|abN|abS|abC|	MGPmg|
  MGPdm|SBAP|SASbo|BWBScmC|BWBScmE|BWBScmNW|BWBScmW|BWBSdmN|BWBSdmS|BWBSlbE|BWBSlbN|BWBSlbW|BWBSlf|BWBSnm|BWBSpp|BWBSub|BWBSuf', ss_nospace))
 edat<- mutate(edat, edatopex=case_when(edatope=="C3"|edatope=="C4"~"C34",
-                                                                 edatope=="C1"|edatope=="C2"|edatope=="C0"~"C12",
-                                                                 edatope=="C5"|edatope=="C6"|edatope=="C7"~"C56",
-                                                                 edatope=="A3"|edatope=="A4"|edatope=="B3"|edatope=="B4"~"AB34",
-                                                                 edatope=="A0"|edatope=="B0"|edatope=="A1"|edatope=="A2"|edatope=="B1"|edatope=="B2"~"AB12",
-                                                                 edatope=="A7"|edatope=="B7"|edatope=="A5"|edatope=="A6"|edatope=="B5"|edatope=="B6"~"AB56",
-                                                                 edatope=="D3"|edatope=="D4"|edatope=="E3"|edatope=="E4"~"DE34",
-                                                                 edatope=="D0"|edatope=="E0"|edatope=="D1"|edatope=="D2"|edatope=="E1"|edatope=="E2"~"DE12",
-                                                                 edatope=="D7"| edatope=="E7"|edatope=="D5"|edatope=="D6"|edatope=="E5"|edatope=="E6"~"DE56",
-                                                                 TRUE~NA))
+                                       edatope=="C1"|edatope=="C2"|edatope=="C0"~"C12",
+                                       edatope=="C5"|edatope=="C6"|edatope=="C7"~"C56",
+                                       edatope=="A3"|edatope=="A4"|edatope=="B3"|edatope=="B4"~"AB34",
+                                       edatope=="A0"|edatope=="B0"|edatope=="A1"|edatope=="A2"|edatope=="B1"|edatope=="B2"~"AB12",
+                                       edatope=="A7"|edatope=="B7"|edatope=="A5"|edatope=="A6"|edatope=="B5"|edatope=="B6"~"AB56",
+                                       edatope=="D3"|edatope=="D4"|edatope=="E3"|edatope=="E4"~"DE34",
+                                       edatope=="D0"|edatope=="E0"|edatope=="D1"|edatope=="D2"|edatope=="E1"|edatope=="E2"~"DE12",
+                                       edatope=="D7"| edatope=="E7"|edatope=="D5"|edatope=="D6"|edatope=="E5"|edatope=="E6"~"DE56",
+                                       TRUE~NA))
 unique(edat$edatopex)
 edat<-select(edat, -edatope)%>%distinct(.)
 
-moddat<-left_join(moddat, edat)
-
-#averages by site series 
-moddat2<-group_by(moddat, spp, ss_nospace,)%>%summarise(pred_abund_ss=mean(pred_abund), TotalAB_ss= mean(TotalAB))
-moddat2<-tidyr::separate(data = moddat2, col = ss_nospace, into = 'bgc', remove = F, sep = "/" )
-moddat2$Zone <- gsub("[^A-Z]", "", moddat2$bgc)
-
-#convert pred abund to esuit
-moddat2<-mutate(moddat2, pred_newsuit= case_when(pred_abund_ss<1~4,
-                                             pred_abund_ss>=1&pred_abund_ss<10~3,
-                                             pred_abund_ss>=10&pred_abund_ss<25~2,
-                                             pred_abund_ss>=25~1, TRUE~0))
-                                   
-#join to actual esuit
+#esuit data
 esuit<-read.csv("data/suitability_v13_25.csv")
 esuit<-select(esuit, ss_nospace, spp, suitability, newsuit, mod)
 esuit<-mutate(esuit, mod= case_when(mod=="HAK/SCS"|mod=="SCS/HAK"|mod=="SAS-HAK"|mod=="HK"~"SS & HK",
@@ -83,79 +38,12 @@ esuit<-mutate(esuit, mod= case_when(mod=="HAK/SCS"|mod=="SCS/HAK"|mod=="SAS-HAK"
                                     mod=='cd'~"CD", TRUE ~mod))
 esuit<-filter(esuit, !grepl('_OC|_WC|_CA|_OR|_WA|_ID|_MT|_CA|_WY|_CO|_NV|UT|BSJP|abE|abN|abS|abC|	MGPmg|
  MGPdm|SBAP|SASbo|BWBScmC|BWBScmE|BWBScmNW|BWBScmW|BWBSdmN|BWBSdmS|BWBSlbE|BWBSlbN|BWBSlbW|BWBSlf|BWBSnm|BWBSpp|BWBSub|BWBSuf', ss_nospace))
-moddat2<-left_join(moddat2, esuit)
-
-moddat2$suit_diff<-moddat2$newsuit-moddat2$pred_newsuit
-hist(moddat2$suit_diff)
-#moddat2<-subset(moddat2, !is.na(suit_diff))
-moddat2$X<-NULL
-
-#visualize----
-moddat2<-tidyr::unite(moddat2, col = "spp_zone",c("spp", "Zone"), remove = F)
-moddat2<-tidyr::unite(moddat2, col = "zone_spp",c("Zone", "spp"), remove = F)
-
-ggplot(data = subset(moddat2,suit_diff<3), aes(y=suit_diff))+
-  geom_bar() + facet_wrap(~spp)+ 
-  geom_hline(yintercept = 0,
-    color='red', lty=2, alpha=0.5)+
-  ylab('diff expert - model pred Esuit')
-
-ggplot(data = subset(moddat2,suit_diff<3), aes(y=suit_diff))+
-  geom_bar() + facet_wrap(~spp_zone)+ 
-  geom_hline(yintercept = 0,
-             color='red', lty=2, alpha=0.5)+
-  ylab('diff expert - model pred Esuit')
-
-ggplot(data = subset(moddat2,suit_diff<3), aes(y=suit_diff))+
-  geom_bar() + facet_wrap(~zone_spp)+ 
-  geom_hline(yintercept = 0,
-             color='red', lty=2, alpha=0.5)+
-  ylab('diff expert - model pred Esuit')
-
-#by rater 
-ggplot(data = subset(moddat2,suit_diff<3), aes(y=suit_diff))+
-  geom_bar() + facet_wrap(~mod)+ 
-  geom_hline(yintercept = 0,
-             color='red', lty=2, alpha=0.5)+
-  ylab('diff expert - model pred Esuit')
-
-#change_type
-moddat3<-mutate(moddat2, change_type=case_when(newsuit=="1"& pred_newsuit=="2"~"E1->E2",
-                                               newsuit=="1"& pred_newsuit=="3"~"E1->E3",
-                                               newsuit=="1"& pred_newsuit=="4"~"E1->E4",
-                                               newsuit=="2"& pred_newsuit=="1"~"E2->E1", 
-                                               newsuit=="2"& pred_newsuit=="3"~"E2->E3",
-                                               newsuit=="2"& pred_newsuit=="4"~"E2->E4",
-                                               newsuit=="3"& pred_newsuit=="1"~"E3->E1", 
-                                               newsuit=="3"& pred_newsuit=="2"~"E3->E2",
-                                               newsuit=="3"& pred_newsuit=="4"~"E3->E4",
-                                               newsuit=="4"& pred_newsuit=="1"~"E4->E1", 
-                                               newsuit=="4"& pred_newsuit=="2"~"E4->E2",
-                                               newsuit=="4"& pred_newsuit=="3"~"E4->E3",
-                                               newsuit=="5"& pred_newsuit=="1"~"E5->E1", 
-                                               newsuit=="5"& pred_newsuit=="2"~"E5->E2",
-                                               newsuit=="5"& pred_newsuit=="3"~"E5->E3",
-                                               newsuit=="5"& pred_newsuit=="4"~"E5->E4", TRUE~"no change"))
-moddat3<-subset(moddat3, !is.na(suit_diff))
-
-library(paletteer)
-ggplot(moddat3, aes(x=change_type, fill=as.factor(suit_diff)))+ geom_bar()+ 
-  scale_fill_paletteer_d("ggsci::default_jama") + facet_wrap(~spp)
-
-#test set for Kiri
-Sx_test<-subset(moddat3, spp=='Sx')%>%select(spp, ss_nospace, bgc, newsuit, pred_newsuit, suit_diff, change_type)
-Sx_test$rule_newsuit <- round(apply(Sx_test[, c("newsuit", "pred_newsuit")], 1, median, na.rm = TRUE))
-Sx_test<-mutate(Sx_test, rule_newsuit= ifelse(abs(suit_diff)>1, rule_newsuit, newsuit))
-write.csv(Sx_test, "Sx_test.csv")
-
 
 #predict over new -----
-#load("outputs/brms/postmod_interceptonly.Rdata")
-#moddat0<-postmod_int$data
-#newdat<-tidyr::expand_grid(spp = unique(moddat0$spp),
-#                           bgc = unique(edat$bgc), 
-#                           edatopex=unique(edat$edatopex),
-#                           StructuralStage_clean=6) #just setting this to mature forest for novel preds 
+newdat<-tidyr::expand_grid(spp = unique(moddat$spp),
+                           bgc = unique(edat$bgc), 
+                           edatopex=unique(edat$edatopex),
+                           StructuralStage_clean=6) #just setting this to mature forest for novel preds 
 
 #epreds_new<-posterior_epred(postmod_int, newdata = newdat, re.form = NULL, allow_new_levels= T)
 #epreds_new<-as.data.frame(colMeans(epreds_new))
@@ -180,7 +68,7 @@ newdat2<-mutate(newdat2, pred_newsuit= case_when(pred_abund_ss<1~4,
 #join with suit
 newdat3<-left_join(newdat2, esuit)
 newdat3<-mutate(newdat3, mod=ifelse(is.na(newsuit), 'brms_pred', mod))%>%
-          mutate(newsuit=ifelse(is.na(newsuit), 5, newsuit))
+  mutate(newsuit=ifelse(is.na(newsuit), 5, newsuit))
 
 
 newdat3$suit_diff<-newdat3$newsuit-newdat3$pred_newsuit
@@ -213,20 +101,168 @@ ggplot(data = subset(newdat3, mod=="brms_pred"& Zone=="ICH"), aes(y=suit_diff))+
   ylab('diff expert - model pred Esuit') + ggtitle("ICH")
 
 #which of these have plot data? 
-newdat4<-left_join(newdat3, select(moddat2, spp, ss_nospace, bgc, TotalAB_ss)) 
+moddat2<-left_join(moddat, edat)%>%group_by(spp, ss_nospace)%>%summarise(TotalAB_cube_ss=mean(TotalAB_cube))
+moddat2$TotalAB_ss<-(moddat2$TotalAB_cube_ss)^3
+newdat4<-left_join(newdat3, select(moddat2, spp, ss_nospace, TotalAB_ss)) 
 subset(newdat4, !is.na(TotalAB_ss)&mod=="brms_pred")#same ~2800 without ratings in moddat 2 over fitted
 
 #which of these have been rated at least once in same bgc- keep these novel preds? 
 newdat4$bgc<-NULL
 newdat4<-tidyr::separate(data = newdat4, col = ss_nospace, into = 'bgc', remove = F, sep = "/" )
 newdat5<-mutate(newdat4, rated= if_else(mod!="brms_pred"|is.na(mod), 1, 0))%>% 
-group_by(bgc, spp)%>%mutate(rated2=sum(rated))
+  group_by(bgc, spp)%>%mutate(rated2=sum(rated))
 newdat5<-subset(newdat5, rated2>0)
 newdat5<-arrange(newdat5, spp, ss_nospace)
 
 newdat5$rated<-NULL
 newdat5$rated2<-NULL
 
+#difference type
+newdat5<-mutate(newdat5, diff_type=case_when(newsuit=="1"& pred_newsuit=="2"~"E1->E2",
+                                               newsuit=="1"& pred_newsuit=="3"~"E1->E3",
+                                               newsuit=="1"& pred_newsuit=="4"~"E1->E4",
+                                               newsuit=="2"& pred_newsuit=="1"~"E2->E1", 
+                                               newsuit=="2"& pred_newsuit=="3"~"E2->E3",
+                                               newsuit=="2"& pred_newsuit=="4"~"E2->E4",
+                                               newsuit=="3"& pred_newsuit=="1"~"E3->E1", 
+                                               newsuit=="3"& pred_newsuit=="2"~"E3->E2",
+                                               newsuit=="3"& pred_newsuit=="4"~"E3->E4",
+                                               newsuit=="4"& pred_newsuit=="1"~"E4->E1", 
+                                               newsuit=="4"& pred_newsuit=="2"~"E4->E2",
+                                               newsuit=="4"& pred_newsuit=="3"~"E4->E3",
+                                               newsuit=="5"& pred_newsuit=="1"~"E5->E1", 
+                                               newsuit=="5"& pred_newsuit=="2"~"E5->E2",
+                                               newsuit=="5"& pred_newsuit=="3"~"E5->E3",
+                                               newsuit=="5"& pred_newsuit=="4"~"E5->E4", TRUE~"no diff"))
+
+library(paletteer)
+ggplot(subset(newdat5, mod!="brms_pred"),  aes(x=diff_type, fill=as.factor(suit_diff)))+ geom_bar()+ 
+  scale_fill_paletteer_d("ggsci::default_jama") + facet_wrap(~spp)
+
+#Include proposed ruleset ratings
+newdat5$rule_newsuit <- round(apply(newdat5[, c("newsuit", "pred_newsuit")], 1, median, na.rm = TRUE))
+
+newdat5<-mutate(newdat5, rule_newsuit= ifelse(abs(suit_diff)>1, rule_newsuit, newsuit))
+newdat5<-mutate(newdat5, update_ruleset= ifelse(abs(suit_diff)>1 & mod!='brms_pred' & !is.na(TotalAB_ss), 1, 0))
+
+library(paletteer)
+ggplot(subset(newdat5, mod!="brms_pred"),  aes(x=diff_type, fill=as.factor(update_ruleset)))+ geom_bar()+ 
+  scale_fill_paletteer_d("ggsci::default_jama") + facet_wrap(~spp)+ theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))#+
+  #theme(legend.position='none')
+
+save(newdat5, file="outputs/brms/mod_preds_all.Rdata")
+
+
+#Sx test set for Kiri
+Sx_test<-subset(newdat5, spp=='Sx')
+write.csv(Sx_test, "Sx_test.csv")
+
+
+
+
+
+#predict over fitted ----
+#option 1:brms posterior epred
+#epreds<-posterior_epred(postmod_int, re.form = NULL)
+#rm(postmod_int)
+#gc()
+#epreds<-as.data.frame(colMeans(epreds))
+#epreds$pred_abund_cube<-epreds$`colMeans(epreds)`
+#epreds$`colMeans(epreds)`<-NULL
+#epreds$pred_abund<-(epreds$pred_abund_cube)^3
+#save(epreds, file= "outputs/brms/postmod_epreds.Rdata")
+
+#option 2: tidybayes epred_draws (NOT USING- maxes out RAM)
+#preds <- postmod_int %>%
+#  epred_draws(moddat,allow_new_levels=T,
+#              re_formula = NULL) 
+#preds$pred_abund<-NULL
+#preds$pred_abund<-(preds$.epred)^3
+#preds$TotalAB<-(preds$TotalAB_cube)^3
+#save(preds, file= "outputs/brms/postmod_epred_draws.Rdata")
+
+#load saved model preds
+#load("outputs/brms/postmod_epreds.Rdata")
+
+#join back with model data 
+#moddat<-cbind(moddat, epreds)
+#moddat$TotalAB<-(moddat$TotalAB_cube)^3
+
+#free up space 
+#rm(postmod_int)
+#rm(epreds)
+#gc()
+
+#moddat<-left_join(moddat, edat)
+
+#averages by site series 
+#moddat2<-group_by(moddat, spp, ss_nospace,)%>%summarise(pred_abund_ss=mean(pred_abund), TotalAB_ss= mean(TotalAB))
+#moddat2<-tidyr::separate(data = moddat2, col = ss_nospace, into = 'bgc', remove = F, sep = "/" )
+#moddat2$Zone <- gsub("[^A-Z]", "", moddat2$bgc)
+
+#convert pred abund to esuit
+#moddat2<-mutate(moddat2, pred_newsuit= case_when(pred_abund_ss<1~4,
+#                                             pred_abund_ss>=1&pred_abund_ss<10~3,
+#                                             pred_abund_ss>=10&pred_abund_ss<25~2,
+#                                             pred_abund_ss>=25~1, TRUE~0))
+                                   
+#moddat2<-left_join(moddat2, esuit)
+#moddat2$suit_diff<-moddat2$newsuit-moddat2$pred_newsuit
+#hist(moddat2$suit_diff)
+#moddat2<-subset(moddat2, !is.na(suit_diff))
+#moddat2$X<-NULL
+
+#visualize----
+#moddat2<-tidyr::unite(moddat2, col = "spp_zone",c("spp", "Zone"), remove = F)
+#moddat2<-tidyr::unite(moddat2, col = "zone_spp",c("Zone", "spp"), remove = F)
+
+#ggplot(data = subset(moddat2,suit_diff<3), aes(y=suit_diff))+
+#  geom_bar() + facet_wrap(~spp)+ 
+#  geom_hline(yintercept = 0,
+#    color='red', lty=2, alpha=0.5)+
+#  ylab('diff expert - model pred Esuit')
+
+#ggplot(data = subset(moddat2,suit_diff<3), aes(y=suit_diff))+
+#  geom_bar() + facet_wrap(~spp_zone)+ 
+#  geom_hline(yintercept = 0,
+#             color='red', lty=2, alpha=0.5)+
+#  ylab('diff expert - model pred Esuit')
+
+#ggplot(data = subset(moddat2,suit_diff<3), aes(y=suit_diff))+
+#  geom_bar() + facet_wrap(~zone_spp)+ 
+#  geom_hline(yintercept = 0,
+#             color='red', lty=2, alpha=0.5)+
+#  ylab('diff expert - model pred Esuit')
+
+#by rater 
+#ggplot(data = subset(moddat2,suit_diff<3), aes(y=suit_diff))+
+#  geom_bar() + facet_wrap(~mod)+ 
+#  geom_hline(yintercept = 0,
+#             color='red', lty=2, alpha=0.5)+
+#  ylab('diff expert - model pred Esuit')
+
+#change_type
+#moddat3<-mutate(moddat2, change_type=case_when(newsuit=="1"& pred_newsuit=="2"~"E1->E2",
+#                                               newsuit=="1"& pred_newsuit=="3"~"E1->E3",
+#                                               newsuit=="1"& pred_newsuit=="4"~"E1->E4",
+#                                               newsuit=="2"& pred_newsuit=="1"~"E2->E1", 
+#                                               newsuit=="2"& pred_newsuit=="3"~"E2->E3",
+#                                               newsuit=="2"& pred_newsuit=="4"~"E2->E4",
+#                                               newsuit=="3"& pred_newsuit=="1"~"E3->E1", 
+#                                               newsuit=="3"& pred_newsuit=="2"~"E3->E2",
+#                                               newsuit=="3"& pred_newsuit=="4"~"E3->E4",
+#                                               newsuit=="4"& pred_newsuit=="1"~"E4->E1", 
+#                                               newsuit=="4"& pred_newsuit=="2"~"E4->E2",
+#                                               newsuit=="4"& pred_newsuit=="3"~"E4->E3",
+#                                               newsuit=="5"& pred_newsuit=="1"~"E5->E1", 
+#                                               newsuit=="5"& pred_newsuit=="2"~"E5->E2",
+#                                               newsuit=="5"& pred_newsuit=="3"~"E5->E3",
+#                                               newsuit=="5"& pred_newsuit=="4"~"E5->E4", TRUE~"no change"))
+#moddat3<-subset(moddat3, !is.na(suit_diff))
+
+##library(paletteer)
+#ggplot(moddat3, aes(x=change_type, fill=as.factor(suit_diff)))+ geom_bar()+ 
+#  scale_fill_paletteer_d("ggsci::default_jama") + facet_wrap(~spp)#
 
 #OLD----
 #pull out average abundances by site series-RAW DATA
