@@ -258,7 +258,21 @@ sort(unique(feas.dat.validate$edatopex))
 names(feas.dat.validate)
 feas.dat.validate<-select(feas.dat.validate, -X, -SuccessionalStatus, -PlotRepresenting, -SiteUnit, -elev_check, -BECSiteUnit)
 
+#check that each unique plot # for each site series
+check<-select(feas.dat.validate, PlotNumber,ss_nospace)%>%distinct(.)%>%group_by(PlotNumber)%>%
+  mutate(ss_ct=n())%>%filter(ss_ct>1)
+feas.dat.validatex<-subset(feas.dat.validate, PlotNumber %in% check$PlotNumber)
+feas.dat.validate<-subset(feas.dat.validate, !PlotNumber %in% check$PlotNumber)
 
+site_lookup <- feas.dat.validatex %>%
+  distinct(PlotNumber, ss_nospace) %>%
+  group_by(PlotNumber) %>%
+  mutate(suffix = letters[row_number()])
+
+feas.dat.validatex <- feas.dat.validatex %>%
+  left_join(site_lookup, by = c("PlotNumber", "ss_nospace")) %>%
+  mutate(PlotNumber = paste0(PlotNumber, "_", suffix))%>%select(-suffix)
+feas.dat.validate<-rbind(feas.dat.validate, feas.dat.validatex)
 #save output----
 save(feas.dat.validate, file="data/feas_abund_data_validate.Rdata")
 
