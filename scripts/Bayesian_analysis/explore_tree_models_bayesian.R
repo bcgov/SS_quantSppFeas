@@ -42,81 +42,122 @@ load(file="data/feas_abund_data_validate.Rdata")
 #or use all data
 moddat<-feas.dat.validate
 
+#incorporate feedback from Prov. Ecology Team - May 2026
+#spp rel. abundance response as proportion of total plot cover 
+#plot level spp richness in model (random eff)
+#canopy layer in model (random eff)
+#moddat <- moddat %>% mutate(layer=case_when(TotalA>0&TotalB<0.5~'A', 
+#                                            TotalA<0.5&TotalB>0~'B', 
+#                                            TRUE~"AB"))%>%
+#  group_by(ss_nospace) %>% mutate(spp_rich=mean(n_distinct(spp)))%>%
+#  group_by(PlotNumber) %>% mutate(total_cover=mean(TotalAB))%>% 
+#  mutate(prop_cover=(TotalAB/total_cover)*100)%>% ungroup(.) 
 
 # Define the ranges for each class- use area cutoffs from Table 3.3 LMH 25
-# Simulate random data for each class within the given ranges, use zero for E5
-moddat <- moddat %>%
-  group_by(newsuit) %>%
-  mutate(sim_abund = case_when(newsuit=='4'~runif(n(), 0.01, 1), 
-                               newsuit=='3'~runif(n(), 1.01, 10), 
-                               newsuit=='2'~runif(n(), 10.01, 25), 
-                               newsuit=='1'~runif(n(), 25.01, 60), TRUE~0))
-hist(moddat$sim_abund)
-#trans<-rcompanion::transformTukey(moddat$sim_abund, start=-1.5, statistic = 2)
-#hist(trans)
-#hist((moddat$sim_abund)^0.7)
+# Simulate random data for each class within the given ranges - use NA for E5
+#moddat <- moddat %>%
+#  group_by(newsuit) %>% 
+#  mutate(sim_abund = case_when(newsuit=='4'~runif(n(), 0.01, 1), 
+#                               newsuit=='3'~runif(n(), 1.01, 10), 
+#                               newsuit=='2'~runif(n(), 10.01, 25), 
+#                               newsuit=='1'~runif(n(), 25.01, 100), TRUE~0.01))
+#hist((moddat$sim_abund))
+#hist(log(moddat$sim_abund))
+#hist(moddat$prop_cover)
+#hist(log(moddat$prop_cover)) #they look similarly left skewed 
+
 
 # allow for 20% overlap between categories 
-moddat <- moddat %>%
-  group_by(newsuit) %>%
-  mutate(sim_abund = case_when(newsuit=='4'~runif(n(), 0.01, 2.8), 
-                               newsuit=='3'~runif(n(), 0.8, 13), 
-                               newsuit=='2'~runif(n(), 8.2, 40), 
-                               newsuit=='1'~runif(n(), 22, 80), TRUE~0))
-hist(moddat$sim_abund)
-#transform so less skewed 
-#trans<-rcompanion::transformTukey(moddat$sim_abund, start=-1.5, statistic = 2)
-#hist(trans)
-#hist((moddat$sim_abund)^0.333)
-#trans2<-rcompanion::transformTukey(moddat$TotalAB, start=-1.5, statistic = 2)
-#hist(trans2)
+#moddat <- moddat %>%
+#  group_by(newsuit) %>%
+#  mutate(sim_abund = case_when(newsuit=='4'~runif(n(), 0.01, 2.8), 
+#                               newsuit=='3'~runif(n(), 0.8, 13), 
+#                               newsuit=='2'~runif(n(), 8.2, 40), 
+#                               newsuit=='1'~runif(n(), 22, 100), TRUE~0))
+#hist(moddat$sim_abund)
 
 #remove E5s
-moddat<-subset(moddat, sim_abund>0)
+#moddat<-subset(moddat, sim_abund>0)
+
+#convert abund to esuit for prior model 
+#moddat<-mutate(moddat, newsuit_plot= case_when(TotalAB<1~4&TotalAB>0.01,
+#                                               TotalAB>=1&TotalAB<10~3,
+#                                               TotalAB>=10&TotalAB<25~2,
+#                                               TotalAB>=25~1, TRUE~5))
+#convert prop_abund to esuit for prior model 
+#moddat<-mutate(moddat, newsuit_plot2= case_when(prop_cover<1&prop_cover>0.01~4,
+#                                                prop_cover>=1&prop_cover<10~3,
+#                                                prop_cover>=10&prop_cover<25~2,
+#                                                prop_cover>=25~1, TRUE~5))
+
+#moddat<-group_by(moddat, spp, bgc, edatope)%>%mutate(mean_abund_edat=mean(TotalAB,  na.rm = T))
+
+#which correlates most with expert ratings?
+#cor.test(moddat$newsuit, moddat$newsuit_plot) #20%
+#cor.test(moddat$newsuit, moddat$newsuit_plot2)#20%
+#cor.test(moddat$newsuit, moddat$TotalAB) #25% 
+#cor.test(moddat$sim_abund, moddat$TotalAB) #22% 
+#cor.test(moddat$newsuit, moddat$mean_abund_edat)#0.33%
 
 #by level
-plot(as.factor(moddat$newsuit), moddat$sim_abund) 
-plot(as.factor(moddat$spp), sqrt(moddat$TotalAB)) #do spp have different baseline abundances? yes  
-
-#exp transform response
-moddat$sim_abund_cube<-(moddat$sim_abund)^(1/3)
-hist(moddat$sim_abund_cube)
-hist(moddat$TotalAB^(1/3))#ok
-moddat$TotalAB_cube<-(moddat$TotalAB)^(1/3)
-hist(moddat$TotalAB_cube)#ok 
-
-
+plot(as.factor(moddat$newsuit), moddat$TotalAB) 
+plot(as.factor(moddat$spp), (moddat$TotalAB)) #do spp have different baseline abundances? yes  
+hist(moddat2$TotalAB)
 #fit brms models----
+#subset full df to test model 
+#moddat2<-group_by(moddat, spp, bgc, edatope)%>%slice_sample(prop = 0.15) #run with 15% of data 
+
+#try ordinal cumulative link model 
+ordmod<-brm(bf(newsuit~ scale(TotalAB) + (1|spp:bgc:edatopex) + (1|spp) + (1|bgc) + (1|edatopex) +
+                       (1|StructuralStage_clean) + (1|PlotNumber)) , 
+                  data = moddat,
+                  family = cumulative(),
+                  chains = 2, iter = 5000, warmup = 1000,  backend = "cmdstanr", 
+                  threads = threading(4),
+                  save_pars = save_pars(all = TRUE),
+                  control = list(adapt_delta = 0.9))
+
+pp_check(ordmod)
+summary(ordmod)
+y<-posterior_predict(ordmod)
+save(ordmod, file= "outputs/brms/ordinalmod_flatpriors.Rdata")
 
 #Prior model 
-#subset full df to test model 
-moddat2<-group_by(moddat, spp, bgc, edatope)%>%slice_sample(prop = 0.15) #run with 15% of data 
-hist(moddat2$sim_abund_cube)
-hist(moddat2$TotalAB_cube)
-
-priormod_int<-brm(bf(sim_abund_cube~ (1|spp:bgc:edatopex) + (1|spp) + (1|bgc) + (1|StructuralStage_clean)) , 
-                     data = moddat,
-                     family = skew_normal(),
-                     chains = 2, iter = 7000, warmup = 2000, 
-                     control = list(adapt_delta = 0.9))
+priormod_int<-brm(bf(newsuit_plot~ (1|spp:bgc:edatopex) + (1|spp) + (1|bgc) +
+                       (1|StructuralStage_clean)) , 
+                     data = moddat2,
+                     family = negbinomial(),
+                     chains = 2, iter = 8000, warmup = 2000,  backend = "cmdstanr", 
+                     threads = threading(4),
+                     save_pars = save_pars(all = TRUE),
+                     control = list(adapt_delta = 0.99))
 pp_check(priormod_int)#looks ok 
-save(priormod_int, file= "outputs/brms/priormod_interceptonly.Rdata")
 summary(priormod_int)
 x<-ranef(priormod_int)
 
-priors<- c(set_prior("normal(2.54, 0.09)", class= "Intercept"), 
-             set_prior("normal(0.66, 0.01)", class = "sd", group = 'spp:bgc:edatopex'), 
-             set_prior("normal(0.31, 0.02)", class = "sd", group = 'bgc'), 
-             set_prior("normal(0.28, 0.06)", class = "sd", group = 'spp'),
-             set_prior("normal(0.12, 0.06)", class = "sd", group = 'StructuralStage_clean'))#, 
+save(priormod_int, file= "outputs/brms/priormod_interceptonly.Rdata")
+
+priors<- c(set_prior("normal(3.19, 0.24)", class= "Intercept"), 
+             set_prior("normal(0.30, 0.03)", class = "sd", group = 'bgc'), 
+             set_prior("normal(0.28, 0.39)", class = "sd", group = 'layer'),
+             set_prior("normal(0.36, 0.08)", class = "sd", group = 'spp'),
+             set_prior("normal(0.73, 0.02)", class = "sd", group = 'spp:bgc:edatopex'), 
+             set_prior("normal(0.04, 0.03)", class = "sd", group = 'spp_rich'),
+             set_prior("normal(0.06, 0.04)", class = "sd", group = 'StructuralStage_clean'))#, 
              #set_prior("normal(0.59,  0.01)", class="sigma"))#, 
              #set_prior("normal(1.0,  0.2)", class="alpha"))
 #posterior (data) model
-postmod_int<-brm(bf(TotalAB_cube~ (1|spp:bgc:edatopex) + (1|spp) + (1|bgc) + (1|StructuralStage_clean)) , 
-                    data = moddat,
-                    family = skew_normal(), prior =priors, 
-                    chains = 2, iter = 7000, warmup = 2000, 
-                    control = list(adapt_delta = 0.9))
+
+postmod_int<-brm(bf(prop_cover~ (1|spp:bgc:edatopex) + (1|spp) + (1|bgc) + (1|StructuralStage_clean) + 
+                      (1|layer) + (1|spp_rich)) , 
+                    data = moddat2, prior =priors,
+                    family = negbinomial(), 
+                    chains = 2, iter = 8000, warmup = 2000,  backend = "cmdstanr", 
+                    threads = threading(4),
+                    save_pars = save_pars(all = TRUE),
+                    control = list(adapt_delta = 0.99))
+  
+ 
 pp_check(postmod_int)
 save(postmod_int, file= "outputs/brms/postmod_interceptonly.Rdata")
 y<-ranef(postmod_int)
@@ -161,7 +202,7 @@ help("future.globals.maxSize", package = "future")
 Fd_priormod<-brm(bf(sim_abund_sqrt~ 0 + Intercept + PC1 + PC2 + PC3 + bgc + (PC1 + PC2 + PC3|edatope)) , 
   data = Fdfeas,
   family = skew_normal(),
-  chains = 2, iter = 7000, warmup = 2000, 
+  chains = 2, iter = 7000, warmup = 2000,
   control = list(adapt_delta = 0.9))
 save(Fd_priormod, file= "outputs/brms/Fd_priormod_skew.Rdata")
 

@@ -166,7 +166,23 @@ missing_plots<-select(z, ss_nospace_final)%>%distinct(.)
 #sites with BEC data but missing suit ratings- for inputting 
 BEC_missing_feas<-anti_join(feas.dat.subx2, feas.dat.subz)
 BEC_missing_feas$X<-NULL
-#write.csv(BEC_missing_feas, "data/BEC_missing_feas.csv")
+BEC_missing_feas<- mutate(BEC_missing_feas, NutrientRegime_clean=ifelse(NutrientRegime_clean=="F","E", NutrientRegime_clean))# there is no F
+BEC_missing_feas<- mutate(BEC_missing_feas, MoistureRegime_clean=ifelse(MoistureRegime_clean=="8","7", MoistureRegime_clean)) #lump 8s with 7s to match CCISS
+BEC_missing_feas$edatope<-paste(BEC_missing_feas$NutrientRegime_clean, BEC_missing_feas$MoistureRegime_clean, sep="")
+BEC_missing_feas<- mutate(BEC_missing_feas, edatopex=case_when(edatope=="C3"|edatope=="C4"~"C34",
+                                                                     edatope=="C1"|edatope=="C2"|edatope=="C0"~"C12",
+                                                                     edatope=="C5"|edatope=="C6"|edatope=="C7"~"C56",
+                                                                     edatope=="A3"|edatope=="A4"|edatope=="B3"|edatope=="B4"~"AB34",
+                                                                     edatope=="A0"|edatope=="B0"|edatope=="A1"|edatope=="A2"|edatope=="B1"|edatope=="B2"~"AB12",
+                                                                     edatope=="A7"|edatope=="B7"|edatope=="A5"|edatope=="A6"|edatope=="B5"|edatope=="B6"~"AB56",
+                                                                     edatope=="D3"|edatope=="D4"|edatope=="E3"|edatope=="E4"~"DE34",
+                                                                     edatope=="D0"|edatope=="E0"|edatope=="D1"|edatope=="D2"|edatope=="E1"|edatope=="E2"~"DE12",
+                                                                     edatope=="D7"| edatope=="E7"|edatope=="D5"|edatope=="D6"|edatope=="E5"|edatope=="E6"~"DE56",
+                                                                     TRUE~NA))
+#combine A & B layer
+BEC_missing_feas<-mutate(BEC_missing_feas, TotalA= replace_na(TotalA, 0), TotalB= replace_na(TotalB, 0))%>%
+  mutate(TotalAB=TotalA + TotalB)
+write.csv(BEC_missing_feas, "data/BEC_missing_feas.csv")
 
 #plot by spp ----
 #Ac- 
