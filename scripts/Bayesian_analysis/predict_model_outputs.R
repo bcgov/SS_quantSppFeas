@@ -127,23 +127,40 @@ ggplot(data = subset(epreds_new3), aes(y=suit_diff))+
 epreds_new3<-mutate(epreds_new3, diff_type=case_when(newsuit=="1"& pred_class_ss=="2"~"E1->E2",
                                                      newsuit=="1"& pred_class_ss=="3"~"E1->E3",
                                                      newsuit=="1"& pred_class_ss=="4"~"E1->E4",
+                                                     newsuit=="1"& pred_class_ss=="5"~"E1->E5",
                                                      newsuit=="2"& pred_class_ss=="1"~"E2->E1", 
                                                      newsuit=="2"& pred_class_ss=="3"~"E2->E3",
                                                      newsuit=="2"& pred_class_ss=="4"~"E2->E4",
+                                                     newsuit=="2"& pred_class_ss=="5"~"E2->E5",
                                                      newsuit=="3"& pred_class_ss=="1"~"E3->E1", 
                                                      newsuit=="3"& pred_class_ss=="2"~"E3->E2",
                                                      newsuit=="3"& pred_class_ss=="4"~"E3->E4",
+                                                     newsuit=="3"& pred_class_ss=="5"~"E3->E5",
                                                      newsuit=="4"& pred_class_ss=="1"~"E4->E1", 
                                                      newsuit=="4"& pred_class_ss=="2"~"E4->E2",
                                                      newsuit=="4"& pred_class_ss=="3"~"E4->E3",
+                                                     newsuit=="4"& pred_class_ss=="5"~"E4->E5",
                                                      newsuit=="5"& pred_class_ss=="1"~"E5->E1", 
                                                      newsuit=="5"& pred_class_ss=="2"~"E5->E2",
                                                      newsuit=="5"& pred_class_ss=="3"~"E5->E3",
-                                                     newsuit=="5"& pred_class_ss=="4"~"E5->E4", TRUE~"no diff"))
+                                                     newsuit=="5"& pred_class_ss=="4"~"E5->E4", 
+                                                     TRUE~"no diff"))
 
 library(paletteer)
 ggplot(epreds_new3,  aes(x=diff_type, fill=as.factor(suit_diff)))+ geom_bar()+ 
   scale_fill_paletteer_d("ggsci::default_jama") + facet_wrap(~spp)+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+#plot only non-zero differences 
+jama_cols <- paletteer_d("ggsci::default_jama")
+jama_cols<-jama_cols[-3] #remove blue 
+ggplot(subset(epreds_new3, suit_diff!=0), aes(x=diff_type, fill=as.factor(suit_diff)))+ geom_bar()+ 
+  scale_fill_manual(values = jama_cols) + facet_wrap(~spp)+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+#look at +1s
+ggplot(subset(epreds_new3, suit_diff==1), aes(x=bgc)))+ geom_bar()+ 
+  scale_fill_manual(values = jama_cols) + facet_wrap(~spp)+ theme(legend.position = 'none')+
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 
