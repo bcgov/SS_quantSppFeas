@@ -234,7 +234,6 @@ tree_dat$SuccessionalStatus<-tolower(tree_dat$SuccessionalStatus)
 sort(unique(tree_dat$SuccessionalStatus))
 sort(unique(tree_dat$StructuralStage)) # need to finalize calls on all 
 
-
 tree_dat<-mutate(tree_dat, StructuralStage_clean = case_when(grepl("1", StructuralStage) ~ 1,
                                                              grepl("2", StructuralStage) ~ 2,
                                                              grepl("3", StructuralStage) ~ 3, 

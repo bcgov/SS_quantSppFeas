@@ -40,13 +40,17 @@ feas.dat<-subset(feas.dat, spp!='X')#remove any with no species defined
 
 feas.dat<-mutate(feas.dat, newsuit=if_else(is.na(newsuit), suitability, newsuit))#if not updated, use previous rating 
 
-
 #take out the US and alberta stuff because it won't match plot data
 feas.dat<-filter(feas.dat, !grepl('_OC|_WC|_CA|_OR|_WA|_ID|_MT|_CA|_WY|_CO|_NV|UT|BSJP|abE|abN|abS|abC|	MGPmg|
  MGPdm|SBAP|SASbo|BWBScmC|BWBScmE|BWBScmNW|BWBScmW|BWBSdmN|BWBSdmS|BWBSlbE|BWBSlbN|BWBSlbW|BWBSlf|BWBSnm|BWBSpp|BWBSub|BWBSuf', ss_nospace))
 
 #load BEC plot data
 load(file="data/tree_data_cleaned_updated.Rdata") 
+
+#take out non-focal spp
+spps<-unique(tree_dat_sub$spp)
+feas.dat<-filter(feas.dat, spp%in% spps)
+
 #join BEC data with suitability data----
 feas.dat.sub<-rename(feas.dat, ss_nospace_final=ss_nospace)
 feas.dat.subx<-left_join(feas.dat.sub, tree_dat_sub,by = c('ss_nospace_final', 'spp'),relationship = "many-to-many")  
@@ -101,8 +105,7 @@ avgs$diff<-NULL
 #look at prop of site series out of total by spp 
 nss<-select(feas.dat, spp)%>% group_by(spp)%>%summarise(n_site_series=n())
 avgs<-group_by(avgs, spp)%>%mutate(n_ss=n())%>%left_join(., nss)%>%mutate(prop_ss= n_ss/n_site_series)
-select(avgs, spp, prop_ss)%>%distinct(.)
-mean(avgs$prop_ss)
+select(avgs, spp, prop_ss)%>%distinct(.)%>%arrange((prop_ss))
 
 max(avgs$nplots_ss)
 mean(avgs$nplots_ss)
