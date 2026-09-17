@@ -41,7 +41,7 @@ feas.dat<-subset(feas.dat, spp!='X')#remove any with no species defined
 feas.dat<-mutate(feas.dat, newsuit=if_else(is.na(newsuit), suitability, newsuit))#if not updated, use previous rating 
 
 #take out the US and alberta stuff because it won't match plot data
-feas.dat<-filter(feas.dat, !grepl('_OC|_WC|_CA|_OR|_WA|_ID|_MT|_CA|_WY|_CO|_NV|UT|BSJP|abE|abN|abS|abC|	MGPmg|
+feas.dat<-filter(feas.dat, !grepl('_OC|_WC|_CA|_OR|_WA|_ID|_MT|_CA|_WY|_CO|_NV|UT|BSJP|abE|abN|abS|abC|	MGPmg|FGff|
  MGPdm|SBAP|SASbo|BWBScmC|BWBScmE|BWBScmNW|BWBScmW|BWBSdmN|BWBSdmS|BWBSlbE|BWBSlbN|BWBSlbW|BWBSlf|BWBSnm|BWBSpp|BWBSub|BWBSuf', ss_nospace))
 
 #load BEC plot data
